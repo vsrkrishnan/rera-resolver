@@ -15,7 +15,7 @@ Karnataka RERA's own portal has one real, unsolved problem: **name resolution**.
 - **Real government data, not LLM guesses.** `fetch()` pulls live project status, dates, and complaint counts directly from the portal's own detail page for completed projects — not from a web search an LLM might misattribute.
 - **Investigation-list cross-check.** `checkUnderInvestigation()` surfaces RERA's own "Projects Under Investigation" enforcement list as a separate, explicitly-caveated signal — never folded into `resolve()`'s confidence scoring.
 - **Zero LLM cost for the deterministic path.** `resolve()`, `projectsByPromoter()`, and index reads are pure compute plus at most a cached local SQLite read. Every HTTP call anywhere in the library is instrumented.
-- **BYO-LLM, by design.** The (not-yet-built) semantic-bridge tier takes an injected LLM client — this library never bundles a key or vendor dependency.
+- **BYO-LLM, by design — with the guardrail enforced centrally.** The (not-yet-built) semantic-bridge tier takes an injected LLM client — this library never bundles a key or vendor dependency — but every candidate it returns is validated against the real index before it reaches the caller. Any consumer (a script, a human, an LLM agent) gets that validation automatically, rather than having to reimplement it correctly on its own.
 
 ## Install
 
@@ -70,6 +70,8 @@ if (flagged.matches.length > 0) {
 Every candidate carries a `matchScore` (0–1), a `matchTier`, and a human-readable `evidence` string. `resolve()` never collapses this to a single answer — the calling application decides what to do with `ambiguous` results, exactly the same discipline this library's design deliberately preserves from how the problem is traditionally handled: substring matching is too weak to auto-confirm, so nothing here auto-confirms either.
 
 A fourth tier — LLM-assisted semantic matching for cases where the marketing name and legal name share **no tokens at all** (the "Prestige Lakeside Habitat" ↔ "M/s XYZ Developers Pvt Ltd" case token-matching structurally cannot solve) — is planned but gated on measuring how far the deterministic tiers get first. See [Status & Roadmap](#status--roadmap).
+
+**Why this lives inside the library instead of being left to whatever agent calls it:** an LLM asked to bridge a marketing name to a legal name has nothing in the strings themselves to check its answer against, so it's reasoning from its own trained-in knowledge — which can be stale, wrong, or a plausible-sounding guess. If that reasoning happened entirely outside this library, nothing would stop a calling agent from asserting a regNumber it never actually verified. Tier 3, when built, closes that gap structurally: the LLM is only ever shown a shortlist of records that already exist in the index, and every regNumber it returns is checked against the real index before it reaches the caller — anything it invents is discarded, never surfaced. That guarantee is enforced once, centrally, by the library — any agent or application integrating this library gets it automatically, rather than needing to reimplement that validation correctly itself every time.
 
 ## Data sources, and what this library will and won't tell you
 
@@ -143,7 +145,6 @@ npm run measure         # run the labeled eval set (src/eval/eval-set.ts) and re
 | ✅ | Labeled eval set + recall@1/@5 measurement script |
 | ⬜ | Grow the eval set to the scale a real measurement needs |
 | ⬜ | Tier 3 — LLM semantic bridge (gated on the above) |
-| ⬜ | REKI integration (swap-in replacement for its existing substring matcher) |
 
 ## Design principles
 
