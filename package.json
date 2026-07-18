@@ -2,6 +2,7 @@
   "name": "@reki/rera-resolver",
   "version": "0.1.0",
   "description": "Standalone library that resolves messy Karnataka RERA project names to registry records, with a tiered deterministic/LLM matcher.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,6 +12,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "sync": "tsx scripts/sync.ts",
+    "measure": "tsx scripts/measure.ts",
     "test": "node --import tsx --test src/__tests__/**/*.test.ts"
   },
   "dependencies": {
