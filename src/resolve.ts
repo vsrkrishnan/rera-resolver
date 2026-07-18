@@ -1,9 +1,19 @@
-import type { Candidate, IndexRecord, IndexSnapshot, ResolveHints, ResolveResult } from './types.js';
+import type {
+  Candidate,
+  IndexRecord,
+  IndexSnapshot,
+  LlmClient,
+  LlmMatchResponse,
+  OperationCostRecord,
+  ResolveHints,
+  ResolveResult,
+} from './types.js';
 import { readSnapshot, DEFAULT_DB_PATH } from './storage.js';
-import { scoreAll, rankAndDedupe } from './matcher.js';
+import { scoreAll, scorePromoterMatch, rankAndDedupe } from './matcher.js';
 import { MATCH_THRESHOLDS, MAX_CANDIDATES, MAX_WEAK_CANDIDATES } from './config.js';
-import { normalizeForCompare, tokenize, tokenSetScore, type TokenWeightFn } from './textSimilarity.js';
+import type { TokenWeightFn } from './textSimilarity.js';
 import { buildTokenStats, makeTokenWeightFn } from './tokenStats.js';
+import { buildShortlist, runLlmSemanticBridge } from './llmBridge.js';
 
 export interface ResolveOptions {
   dbPath?: string;
@@ -13,6 +23,11 @@ export interface ResolveOptions {
   // instead of relying on a small fixture's own (unrealistic) word
   // frequencies to reproduce production statistics.
   tokenWeightFn?: TokenWeightFn;
+  // Tier 3 (LLM semantic bridge, spec §6). BYO-LLM: omitted entirely by
+  // default, so resolve() stays Tiers 0-2 only, zero LLM cost, unless a
+  // caller explicitly injects an implementation.
+  llmClient?: LlmClient;
+  onCost?: (record: OperationCostRecord) => void;
 }
 
 // Rebuilding document-frequency stats over ~8.8k records on every single
@@ -30,32 +45,18 @@ function getTokenWeightFn(dbPath: string, snapshot: IndexSnapshot): TokenWeightF
   return weightFn;
 }
 
-// Tiers 0-2 only (spec §6: Tier 3 is gated by the §8 measurement and is not
-// built yet). Hard rules enforced here per spec §5.1:
-//  - always returns the full ranked list with scores, never a single
-//    asserted answer;
-//  - 'high_confidence' is advisory only — this function never marks
-//    anything as confirmed;
-//  - thresholds come from the single config.ts location, not inline magic
-//    numbers.
-export async function resolve(name: string, hints?: ResolveHints, options: ResolveOptions = {}): Promise<ResolveResult> {
-  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
-  const snapshot = readSnapshot(dbPath);
-  const query = { name, hints };
-
-  if (!snapshot || snapshot.records.length === 0) {
-    return { status: 'unresolved', candidates: [], unresolvedReason: 'no_candidates', query };
-  }
-
-  const tokenWeightFn = options.tokenWeightFn ?? getTokenWeightFn(dbPath, snapshot);
-  const scored = rankAndDedupe(scoreAll(name, hints, snapshot.records, tokenWeightFn));
-  const withSignal = scored.filter((c) => c.matchScore > 0);
-
+// Shared by the Tiers-0-2-only result and the post-Tier-3 merged result, so
+// the "what counts as high_confidence / ambiguous / unresolved" rule lives
+// in exactly one place regardless of which tiers actually ran (spec §5.1
+// hard rule: thresholds come from config.ts, not duplicated inline logic).
+function buildResult(
+  withSignal: Candidate[],
+  aboveFloor: Candidate[],
+  query: ResolveResult['query'],
+): ResolveResult {
   if (withSignal.length === 0) {
     return { status: 'unresolved', candidates: [], unresolvedReason: 'no_candidates', query };
   }
-
-  const aboveFloor = withSignal.filter((c) => c.matchScore >= MATCH_THRESHOLDS.floor);
 
   if (aboveFloor.length === 0) {
     // Real near-misses exist but none clear the floor — surfaced for
@@ -75,11 +76,66 @@ export async function resolve(name: string, hints?: ResolveHints, options: Resol
   const clearlyAhead = !second || top.matchScore - second.matchScore >= MATCH_THRESHOLDS.clearMargin;
   const status = top.matchScore >= MATCH_THRESHOLDS.highConfidence && clearlyAhead ? 'high_confidence' : 'ambiguous';
 
-  return {
-    status,
-    candidates: aboveFloor.slice(0, MAX_CANDIDATES),
-    query,
+  return { status, candidates: aboveFloor.slice(0, MAX_CANDIDATES), query };
+}
+
+// Tiers 0-2 (deterministic, zero LLM cost) always run. Tier 3 (LLM semantic
+// bridge) runs only when the caller injects an llmClient AND Tiers 0-2
+// didn't already reach high_confidence on their own (spec §6: "only as a
+// fallback"). Hard rules enforced throughout per spec §5.1:
+//  - always returns the full ranked list with scores, never a single
+//    asserted answer;
+//  - 'high_confidence' is advisory only — this function never marks
+//    anything as confirmed;
+//  - thresholds come from the single config.ts location, not inline magic
+//    numbers.
+export async function resolve(name: string, hints?: ResolveHints, options: ResolveOptions = {}): Promise<ResolveResult> {
+  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
+  const startedAt = Date.now();
+  const snapshot = readSnapshot(dbPath);
+  const query = { name, hints };
+
+  const emitCost = (llmAttempted: boolean, llmResponse: LlmMatchResponse | null) => {
+    options.onCost?.({
+      operation: 'resolve',
+      httpCalls: 0,
+      llmCalls: llmAttempted ? 1 : 0,
+      llmInputTokens: llmResponse?.inputTokens,
+      llmOutputTokens: llmResponse?.outputTokens,
+      llmCostInr: llmResponse?.costInr,
+      latencyMs: Date.now() - startedAt,
+      at: new Date().toISOString(),
+    });
   };
+
+  if (!snapshot || snapshot.records.length === 0) {
+    emitCost(false, null);
+    return { status: 'unresolved', candidates: [], unresolvedReason: 'no_candidates', query };
+  }
+
+  const tokenWeightFn = options.tokenWeightFn ?? getTokenWeightFn(dbPath, snapshot);
+  const scored = rankAndDedupe(scoreAll(name, hints, snapshot.records, tokenWeightFn));
+  const withSignal = scored.filter((c) => c.matchScore > 0);
+  const aboveFloor = withSignal.filter((c) => c.matchScore >= MATCH_THRESHOLDS.floor);
+  const tier12Result = buildResult(withSignal, aboveFloor, query);
+
+  if (!options.llmClient || tier12Result.status === 'high_confidence') {
+    emitCost(false, null);
+    return tier12Result;
+  }
+
+  const shortlist = buildShortlist(hints, snapshot.records, withSignal, tokenWeightFn);
+  const outcome = await runLlmSemanticBridge(name, hints, shortlist, snapshot.records, options.llmClient);
+  emitCost(true, outcome.response);
+
+  if (outcome.candidates.length === 0) {
+    return tier12Result;
+  }
+
+  const merged = rankAndDedupe([...scored, ...outcome.candidates]);
+  const mergedWithSignal = merged.filter((c) => c.matchScore > 0);
+  const mergedAboveFloor = mergedWithSignal.filter((c) => c.matchScore >= MATCH_THRESHOLDS.floor);
+  return buildResult(mergedWithSignal, mergedAboveFloor, query);
 }
 
 // Freebie (spec §5.4): local-index-only, zero LLM cost, zero remote calls.
@@ -90,47 +146,9 @@ export async function projectsByPromoter(promoterName: string, options: ResolveO
   const snapshot = readSnapshot(dbPath);
   if (!snapshot) return [];
 
-  const scored = snapshot.records.map((record) => {
-    const c = candidateFromPromoterMatch(promoterName, record);
-    return c;
-  });
+  const scored = snapshot.records.map((record) => scorePromoterMatch(promoterName, record));
 
   return rankAndDedupe(scored)
     .filter((c) => c.matchScore >= MATCH_THRESHOLDS.floor)
     .slice(0, MAX_CANDIDATES);
-}
-
-function candidateFromPromoterMatch(promoterName: string, record: IndexRecord): Candidate {
-  // projectsByPromoter matches on promoterName, not registeredName — reuse
-  // the same normalize/tokenize/tokenSetScore primitives as scoreRecord,
-  // applied to the promoter field instead, rather than distorting
-  // scoreRecord's signature to serve two different fields.
-  const normalizedQuery = normalizeForCompare(promoterName);
-  const normalizedCandidate = normalizeForCompare(record.promoterName);
-
-  if (normalizedQuery && normalizedQuery === normalizedCandidate) {
-    return {
-      regNumber: record.regNumber,
-      registeredName: record.registeredName,
-      promoterName: record.promoterName,
-      dataset: record.dataset,
-      matchScore: 1.0,
-      matchTier: 'exact',
-      evidence: 'exact normalized promoter match',
-    };
-  }
-
-  const queryTokens = tokenize(promoterName);
-  const candidateTokens = tokenize(record.promoterName);
-  const match = tokenSetScore(queryTokens, candidateTokens);
-
-  return {
-    regNumber: record.regNumber,
-    registeredName: record.registeredName,
-    promoterName: record.promoterName,
-    dataset: record.dataset,
-    matchScore: match.score,
-    matchTier: 'token',
-    evidence: `promoter token overlap ${match.matchedPairs.length}/${queryTokens.length || 1}`,
-  };
 }

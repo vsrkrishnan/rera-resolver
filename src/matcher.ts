@@ -68,6 +68,41 @@ export function scoreRecord(
   };
 }
 
+// Scores a record's promoterName against a promoter-name query. Used by
+// projectsByPromoter (matching on promoter, not project name) and by the
+// Tier 3 shortlist builder (llmBridge.ts, for hints.promoterName-based
+// narrowing) — kept here rather than duplicated in both call sites.
+export function scorePromoterMatch(promoterName: string, record: IndexRecord, tokenWeightFn?: TokenWeightFn): Candidate {
+  const normalizedQuery = normalizeForCompare(promoterName);
+  const normalizedCandidate = normalizeForCompare(record.promoterName);
+
+  if (normalizedQuery && normalizedQuery === normalizedCandidate) {
+    return {
+      regNumber: record.regNumber,
+      registeredName: record.registeredName,
+      promoterName: record.promoterName,
+      dataset: record.dataset,
+      matchScore: 1.0,
+      matchTier: 'exact',
+      evidence: 'exact normalized promoter match',
+    };
+  }
+
+  const queryTokens = tokenize(promoterName);
+  const candidateTokens = tokenize(record.promoterName);
+  const match = tokenSetScore(queryTokens, candidateTokens, tokenWeightFn);
+
+  return {
+    regNumber: record.regNumber,
+    registeredName: record.registeredName,
+    promoterName: record.promoterName,
+    dataset: record.dataset,
+    matchScore: match.score,
+    matchTier: 'token',
+    evidence: `promoter token overlap ${match.matchedPairs.length}/${queryTokens.length || 1}`,
+  };
+}
+
 export function scoreAll(
   name: string,
   hints: ResolveHints | undefined,

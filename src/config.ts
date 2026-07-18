@@ -76,3 +76,15 @@ export const PROMOTER_HINT = {
 // rows from a ~13k-record scan.
 export const MAX_CANDIDATES = 10;
 export const MAX_WEAK_CANDIDATES = 5;
+
+// Tier 3 (LLM semantic bridge, spec §6). Kept in this single config location
+// like every other matcher tunable.
+export const MAX_LLM_SHORTLIST = 30;
+
+// Fixed score assigned to every llm_semantic candidate, deliberately between
+// `floor` (0.55) and `highConfidence` (0.92). This means an LLM-sourced
+// match can surface as a real, ranked candidate but can never by itself
+// produce status: 'high_confidence' — an extra safety margin appropriate
+// for a reasoned guess rather than a deterministic token/exact match, on top
+// of the library's existing "never auto-confirm" rule.
+export const LLM_MATCH_SCORE = 0.75;

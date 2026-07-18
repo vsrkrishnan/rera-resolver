@@ -2,7 +2,7 @@
 
 Turns a messy real-estate project name into the correct Karnataka RERA registry record — ranked candidates, scored, with evidence, never a single silent guess.
 
-> **Status: Phase 1, in progress.** Core resolution, sync, and fetch are built and live-tested against the real portal. The LLM semantic bridge (Tier 3) is intentionally not built yet — see [Status & Roadmap](#status--roadmap).
+> **Status: Phase 1, in progress.** Core resolution, sync, fetch, and the LLM semantic bridge (Tier 3) are all built and live-tested against the real portal. See [Status & Roadmap](#status--roadmap) for the honest caveat on Tier 3's timing relative to the eval set.
 
 ## Why this exists
 
@@ -15,7 +15,7 @@ Karnataka RERA's own portal has one real, unsolved problem: **name resolution**.
 - **Real government data, not LLM guesses.** `fetch()` pulls live project status, dates, and complaint counts directly from the portal's own detail page for completed projects — not from a web search an LLM might misattribute.
 - **Investigation-list cross-check.** `checkUnderInvestigation()` surfaces RERA's own "Projects Under Investigation" enforcement list as a separate, explicitly-caveated signal — never folded into `resolve()`'s confidence scoring.
 - **Zero LLM cost for the deterministic path.** `resolve()`, `projectsByPromoter()`, and index reads are pure compute plus at most a cached local SQLite read. Every HTTP call anywhere in the library is instrumented.
-- **BYO-LLM, by design — with the guardrail enforced centrally.** The (not-yet-built) semantic-bridge tier takes an injected LLM client — this library never bundles a key or vendor dependency — but every candidate it returns is validated against the real index before it reaches the caller. Any consumer (a script, a human, an LLM agent) gets that validation automatically, rather than having to reimplement it correctly on its own.
+- **BYO-LLM, by design — with the guardrail enforced centrally.** The semantic-bridge tier (Tier 3) takes an injected `llmClient` — this library never bundles a key or vendor dependency, and `resolve()` behaves exactly as before if you never pass one. Every candidate the LLM names is validated against the real index before it reaches the caller — the LLM may name a regNumber from its own world knowledge, not just from the shortlist it was shown, but anything that doesn't actually exist in the index is silently discarded, never surfaced. Any consumer (a script, a human, an LLM agent) gets that validation automatically, rather than having to reimplement it correctly on its own.
 
 ## Install
 
@@ -57,6 +57,22 @@ if (flagged.matches.length > 0) {
   console.log(flagged.warning);  // staleness/scope caveat — always present
   console.log(flagged.dataAsOf); // how current the WHOLE list is, e.g. "2021-10-22"
 }
+
+// 6. Optional Tier 3: when Tiers 0-2 alone don't reach high_confidence, an
+//    injected LLM client gets a fallback shot at cases with zero token
+//    overlap (marketing name vs. legal SPV name). Omit llmClient entirely
+//    and resolve() stays exactly as above — zero LLM cost, opt-in only.
+const withLlm = await resolve('Prestige Lakeside Habitat', undefined, {
+  llmClient: {
+    async matchShortlist({ query, shortlist }) {
+      // Call your own LLM here. Return real regNumbers with reasoning —
+      // resolve() validates every one against the local index itself and
+      // silently discards anything that isn't actually there.
+      return { matches: [], inputTokens: 0, outputTokens: 0, costInr: 0 };
+    },
+  },
+  onCost: (record) => console.log(record), // llmCalls, tokens, cost — only when Tier 3 actually ran
+});
 ```
 
 ## How resolution actually works
@@ -69,9 +85,11 @@ if (flagged.matches.length > 0) {
 
 Every candidate carries a `matchScore` (0–1), a `matchTier`, and a human-readable `evidence` string. `resolve()` never collapses this to a single answer — the calling application decides what to do with `ambiguous` results, exactly the same discipline this library's design deliberately preserves from how the problem is traditionally handled: substring matching is too weak to auto-confirm, so nothing here auto-confirms either.
 
-A fourth tier — LLM-assisted semantic matching for cases where the marketing name and legal name share **no tokens at all** (the "Prestige Lakeside Habitat" ↔ "M/s XYZ Developers Pvt Ltd" case token-matching structurally cannot solve) — is planned but gated on measuring how far the deterministic tiers get first. See [Status & Roadmap](#status--roadmap).
+A fourth tier — **Tier 3, the LLM semantic bridge** — handles the one case token-matching structurally cannot solve: when the marketing name and legal name share **no tokens at all** (the "Prestige Lakeside Habitat" ↔ "M/s XYZ Developers Pvt Ltd" case). It only runs when a caller injects `llmClient` into `resolve()`'s options **and** Tiers 0–2 didn't already reach `high_confidence` on their own — omit `llmClient` and `resolve()` behaves exactly as if Tier 3 didn't exist, zero LLM cost.
 
-**Why this lives inside the library instead of being left to whatever agent calls it:** an LLM asked to bridge a marketing name to a legal name has nothing in the strings themselves to check its answer against, so it's reasoning from its own trained-in knowledge — which can be stale, wrong, or a plausible-sounding guess. If that reasoning happened entirely outside this library, nothing would stop a calling agent from asserting a regNumber it never actually verified. Tier 3, when built, closes that gap structurally: the LLM is only ever shown a shortlist of records that already exist in the index, and every regNumber it returns is checked against the real index before it reaches the caller — anything it invents is discarded, never surfaced. That guarantee is enforced once, centrally, by the library — any agent or application integrating this library gets it automatically, rather than needing to reimplement that validation correctly itself every time.
+When it does run, `resolve()` builds a small shortlist as grounding context (Tier 2's own weak/below-floor candidates, plus a promoter hint's real projects if one was supplied) and sends it to the injected LLM alongside the query. The LLM is deliberately **not confined** to that shortlist — it may name a regNumber purely from its own world knowledge, since a shortlist built from token-overlap is meaningless for the exact case this tier exists to solve. Every `llm_semantic` candidate is scored at a fixed `LLM_MATCH_SCORE` (0.75, between the floor and the high-confidence threshold) — visible and ranked like any other candidate, but never able by itself to produce `status: 'high_confidence'`.
+
+**Why this validation lives inside the library instead of being left to whatever agent calls it:** an LLM asked to bridge a marketing name to a legal name has nothing in the strings themselves to check its answer against, so it's reasoning from its own trained-in knowledge — which can be stale, wrong, or a plausible-sounding guess. If that reasoning happened entirely outside this library, nothing would stop a calling agent from asserting a regNumber it never actually verified. Tier 3 closes that gap structurally: every regNumber the LLM returns is checked against the full real index before it reaches the caller — anything it invents (or that simply doesn't exist) is discarded, never surfaced. That guarantee is enforced once, centrally, by the library — any agent or application integrating this library gets it automatically, rather than needing to reimplement that validation correctly itself every time.
 
 ## Data sources, and what this library will and won't tell you
 
@@ -95,8 +113,28 @@ function syncIndex(options?: {
 function resolve(
   name: string,
   hints?: { promoterName?: string },
-  options?: { dbPath?: string },
+  options?: {
+    dbPath?: string;
+    llmClient?: LlmClient;   // Tier 3, opt-in — omit for Tiers 0-2 only, zero LLM cost
+    onCost?: (record: OperationCostRecord) => void; // fires once per call; llmCalls: 0 unless Tier 3 ran
+  },
 ): Promise<ResolveResult>;
+
+// BYO-LLM contract for Tier 3 (spec §6). The library never bundles a
+// vendor client or key — implement this against whatever LLM you already
+// use and pass it as resolve()'s llmClient option.
+interface LlmClient {
+  matchShortlist(request: {
+    query: string;
+    hints?: { promoterName?: string };
+    shortlist: { regNumber: string; registeredName: string; promoterName: string }[]; // grounding context, not a hard restriction
+  }): Promise<{
+    matches: { regNumber: string; reasoning: string }[]; // ranked, best first; may name a regNumber outside the shortlist
+    inputTokens?: number;
+    outputTokens?: number;
+    costInr?: number;
+  }>;
+}
 
 function projectsByPromoter(
   promoterName: string,
@@ -115,13 +153,13 @@ function checkUnderInvestigation(
 ): Promise<InvestigationCheckResult>;
 ```
 
-Full types (`Candidate`, `ResolveResult`, `ProjectRecord`, `InvestigationCheckResult`, etc.) are exported from the package root — see `src/types.ts` for the complete, documented shapes. Matcher thresholds (`MATCH_THRESHOLDS`, `TOKEN_MATCH`) are also exported, each with an inline comment explaining why it's set where it is.
+Full types (`Candidate`, `ResolveResult`, `ProjectRecord`, `InvestigationCheckResult`, `LlmClient`, etc.) are exported from the package root — see `src/types.ts` for the complete, documented shapes. Matcher thresholds (`MATCH_THRESHOLDS`, `TOKEN_MATCH`, `LLM_MATCH_SCORE`, `MAX_LLM_SHORTLIST`) are also exported, each with an inline comment explaining why it's set where it is.
 
 ## Development
 
 ```bash
 npm install
-npm test              # 35 tests: matcher logic, real-markup parsing fixtures, resolve/fetch integration
+npm test              # 46 tests: matcher logic, real-markup parsing fixtures, resolve/fetch integration, Tier 3 (llmBridge)
 npm run build          # tsc -> dist/
 npm run sync           # populate/refresh the local SQLite cache from the live portal
 npm run measure         # run the labeled eval set (src/eval/eval-set.ts) and report recall@1/@5
@@ -143,8 +181,11 @@ npm run measure         # run the labeled eval set (src/eval/eval-set.ts) and re
 | ✅ | `fetch()` against real portal detail data |
 | ✅ | `checkUnderInvestigation()` |
 | ✅ | Labeled eval set + recall@1/@5 measurement script |
+| ✅ | Tier 3 — LLM semantic bridge, BYO-LLM, validated against the full index |
 | ⬜ | Grow the eval set to the scale a real measurement needs |
-| ⬜ | Tier 3 — LLM semantic bridge (gated on the above) |
+| ⬜ | Measure Tier 3's *incremental* recall against a real LLM client (spec §8 step 4) |
+
+**Honest note on Tier 3's timing:** the spec's own measurement gate (§8) says to size the eval set properly before building Tier 3. That didn't happen here — Tier 3 was built with the eval set at 19 cases (recall@5 100%, recall@1 80%, zero false high-confidence on the deterministic tiers alone), which by the spec's own interpretation guide suggests Tier 2 was already carrying most of the load and Tier 3 would be a minor fallback rather than load-bearing. It was built anyway, deliberately, because the value here is less about incremental recall and more about giving any consumer — script, human, or LLM agent — a centrally-enforced validation guardrail around LLM-assisted matching (see [How resolution actually works](#how-resolution-actually-works)) rather than trusting every caller to reimplement that discipline itself. Measuring Tier 3's actual incremental recall against a real LLM is still open work.
 
 ## Design principles
 

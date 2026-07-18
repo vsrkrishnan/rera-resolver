@@ -119,6 +119,41 @@ export interface InvestigationCheckResult {
   query: { name: string; hints?: ResolveHints };
 }
 
+// Tier 3 (LLM semantic bridge) BYO-LLM contract. The library never bundles
+// a vendor client or key — a consumer injects an implementation of
+// LlmClient via ResolveOptions.llmClient.
+export interface LlmShortlistEntry {
+  regNumber: string;
+  registeredName: string;
+  promoterName: string;
+}
+
+export interface LlmMatchRequest {
+  query: string;
+  hints?: ResolveHints;
+  // Grounding context only, not a hard restriction — the LLM may name a
+  // regNumber outside this list from its own world knowledge (the whole
+  // point of this tier), but every returned regNumber is validated against
+  // the full local index before it ever reaches the caller.
+  shortlist: LlmShortlistEntry[];
+}
+
+export interface LlmMatch {
+  regNumber: string;
+  reasoning: string;
+}
+
+export interface LlmMatchResponse {
+  matches: LlmMatch[]; // ranked, best first; may be empty
+  inputTokens?: number;
+  outputTokens?: number;
+  costInr?: number;
+}
+
+export interface LlmClient {
+  matchShortlist(request: LlmMatchRequest): Promise<LlmMatchResponse>;
+}
+
 export interface OperationCostRecord {
   operation: 'syncIndex' | 'resolve' | 'fetch' | 'projectsByPromoter';
   httpCalls: number;

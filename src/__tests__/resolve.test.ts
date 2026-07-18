@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeSnapshot } from '../storage.js';
 import { resolve, projectsByPromoter } from '../resolve.js';
-import type { IndexRecord } from '../types.js';
+import type { IndexRecord, LlmClient, OperationCostRecord } from '../types.js';
 
 function withTempDb(fn: (dbPath: string) => void | Promise<void>) {
   return async () => {
@@ -90,5 +90,78 @@ test(
     const scoped = await projectsByPromoter('Prestige Estates Projects', { dbPath });
     assert.ok(scoped.length >= 1);
     assert.equal(scoped[0].regNumber, 'PRM/KA/RERA/0001');
+  }),
+);
+
+// Tier 3 (LLM semantic bridge). "M/s XYZ Developers Pvt Ltd" shares zero
+// tokens with any registeredName in RECORDS, so Tiers 0-2 alone produce no
+// signal at all — the exact zero-overlap case Tier 3 exists for.
+const ZERO_OVERLAP_QUERY = 'M/s XYZ Developers Pvt Ltd';
+
+test(
+  'resolve without an llmClient never invokes Tier 3 (opt-in, zero LLM cost by default)',
+  withTempDb(async (dbPath) => {
+    seed(dbPath, RECORDS);
+    const result = await resolve(ZERO_OVERLAP_QUERY, undefined, { dbPath });
+    assert.equal(result.status, 'unresolved');
+    assert.equal(result.candidates.some((c) => c.matchTier === 'llm_semantic'), false);
+  }),
+);
+
+test(
+  'resolve with an llmClient surfaces a real regNumber the LLM names, even outside the shortlist, as llm_semantic',
+  withTempDb(async (dbPath) => {
+    seed(dbPath, RECORDS);
+    const llmClient: LlmClient = {
+      async matchShortlist() {
+        return {
+          matches: [{ regNumber: 'PRM/KA/RERA/0001', reasoning: 'Lakeside Habitat is a Prestige Estates project' }],
+        };
+      },
+    };
+    const result = await resolve(ZERO_OVERLAP_QUERY, undefined, { dbPath, llmClient });
+    assert.equal(result.status, 'ambiguous'); // never high_confidence from an llm_semantic match alone
+    const llmCandidate = result.candidates.find((c) => c.regNumber === 'PRM/KA/RERA/0001');
+    assert.ok(llmCandidate);
+    assert.equal(llmCandidate!.matchTier, 'llm_semantic');
+  }),
+);
+
+test(
+  'resolve discards a hallucinated regNumber from the llmClient, never surfacing it',
+  withTempDb(async (dbPath) => {
+    seed(dbPath, RECORDS);
+    const llmClient: LlmClient = {
+      async matchShortlist() {
+        return { matches: [{ regNumber: 'PRM/KA/RERA/DOES-NOT-EXIST', reasoning: 'plausible-sounding guess' }] };
+      },
+    };
+    const result = await resolve(ZERO_OVERLAP_QUERY, undefined, { dbPath, llmClient });
+    assert.equal(result.status, 'unresolved');
+    assert.equal(result.candidates.some((c) => c.regNumber === 'PRM/KA/RERA/DOES-NOT-EXIST'), false);
+  }),
+);
+
+test(
+  'resolve emits an onCost record with llmCalls: 1 only when Tier 3 actually ran',
+  withTempDb(async (dbPath) => {
+    seed(dbPath, RECORDS);
+    const llmClient: LlmClient = {
+      async matchShortlist() {
+        return { matches: [], inputTokens: 42, outputTokens: 7, costInr: 0.01 };
+      },
+    };
+
+    const costRecords: OperationCostRecord[] = [];
+    await resolve(ZERO_OVERLAP_QUERY, undefined, { dbPath, llmClient, onCost: (r) => costRecords.push(r) });
+    assert.equal(costRecords.length, 1);
+    assert.equal(costRecords[0].llmCalls, 1);
+    assert.equal(costRecords[0].llmInputTokens, 42);
+
+    // Tiers 0-2 already high_confidence on an exact match -> Tier 3 must not run.
+    costRecords.length = 0;
+    await resolve('Prestige Lakeside Habitat', undefined, { dbPath, llmClient, onCost: (r) => costRecords.push(r) });
+    assert.equal(costRecords.length, 1);
+    assert.equal(costRecords[0].llmCalls, 0);
   }),
 );
