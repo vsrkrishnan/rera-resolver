@@ -1,11 +1,11 @@
 // Labeled evaluation set for the §8 measurement gate. Every case here comes
-// from real queries tried during development (2026-07-17/18), not fabricated
-// examples — see each case's `provenance` for exactly how the label was
-// verified, and `confidence` for how strong that verification actually is.
-// This set is intentionally small right now (well below the spec's "a few
-// dozen minimum") — it's a documented starting point, not a finished eval
-// set. Growing it requires more real queries with real verified outcomes,
-// not synthetic padding.
+// from real queries (either tried during development, 2026-07-17/18, or
+// verified directly against a live-synced index snapshot on 2026-07-18), not
+// fabricated examples — see each case's `provenance` for exactly how the
+// label was verified, and `confidence` for how strong that verification
+// actually is. Still below the spec's "a few dozen minimum" — growing it
+// further requires more real queries with real verified outcomes, not
+// synthetic padding.
 
 export type EvalConfidence = 'confirmed' | 'high_confidence_inferred' | 'unconfirmed';
 export type EvalCategory = 'typo' | 'master_community' | 'brand_prefix' | 'phased_project' | 'pre_rera_absence';
@@ -163,5 +163,133 @@ export const EVAL_SET: EvalCase[] = [
     provenance:
       'Verified absent from the live index. "Ashoka" appears in 8 unrelated real projects; none is a plausible match for "Ashoka Windows". Reason for absence not confirmed.',
     confidence: 'unconfirmed',
+  },
+
+  // Added 2026-07-18: verified directly against a live-synced index snapshot
+  // (data/index.db, fetchedAt 2026-07-18T04:24:36.957Z) via direct SQL query,
+  // not the resolve() API — same "real, checkable outcome" bar as the set
+  // above, just checked by a different, equally authoritative route.
+  {
+    query: 'Purva Meraky',
+    category: 'typo',
+    wellKnown: false,
+    acceptedRegNumbers: ['PRM/KA/RERA/1251/310/PR/071022/005307'],
+    provenance:
+      "Deliberate typo of the real project 'Purva Meraki' (promoter Puravankara Limited). Verified live: sole matching project in the index under either spelling.",
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Sobha Alter',
+    category: 'typo',
+    wellKnown: true,
+    acceptedRegNumbers: ['PRM/KA/RERA/1251/446/PR/070126/008388'],
+    provenance:
+      "Deliberate typo of the real project 'Sobha Altair' (promoter Sobha Limited). Verified live: sole real Sobha project named Altair in the index.",
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Sobha Crystal Meadows',
+    category: 'phased_project',
+    wellKnown: true,
+    acceptedRegNumbers: [
+      'PRM/KA/RERA/1251/446/PR/280324/006733', // Phase 1, Wing 1 to 6
+      'PRM/KA/RERA/1251/446/PR/280324/006734', // Phase 2, Wing 7 and 8
+      'PRM/KA/RERA/1251/446/PR/280324/006735', // Phase 3, Wing 9 to 15
+      'PRM/KA/RERA/1251/446/PR/280324/006736', // Phase 4, Wing 23 to 28
+      'PRM/KA/RERA/1251/446/PR/280324/006737', // Phase 5, Wing 16 to 22
+    ],
+    provenance:
+      'Verified live: exactly 5 real phases registered under Sobha Limited. The query names no specific phase/wing, so this is genuinely multi-answer — same reasoning as Nambiar District 25: recall@1 is not meaningful here, only whether a real phase is surfaced at all.',
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Sobha Dream Acres',
+    category: 'master_community',
+    wellKnown: true,
+    acceptedRegNumbers: [
+      'PRM/KA/RERA/1251/446/PR/170915/000193', // Rain forest Phase 1
+      'PRM/KA/RERA/1251/446/PR/170915/000157', // Rain Forest Phase 2
+      'PRM/KA/RERA/1251/446/PR/170915/000221', // Rain Forest Phase 3
+      'PRM/KA/RERA/1251/446/PR/170915/000156', // Rain Forest Phase 4
+      'PRM/KA/RERA/1251/446/PR/170915/000223', // Rain Forest Phase 5
+      'PRM/KA/RERA/1251/446/PR/170915/000165', // Tropical Greens Phase 6
+      'PRM/KA/RERA/1251/446/PR/170915/000202', // Tropical Greens Phase 7
+      'PRM/KA/RERA/1251/446/PR/170915/000195', // Tropical Greens Phase 8
+      'PRM/KA/RERA/1251/446/PR/170915/000163', // Tropical Greens Phase 9
+      'PRM/KA/RERA/1251/446/PR/170915/000206', // Tropical Greens Phase 10
+      'PRM/KA/RERA/1251/446/PR/170915/000207', // Palm Springs Phase 11
+      'PRM/KA/RERA/1251/446/PR/170915/000168', // Palm Springs Phase 12
+      'PRM/KA/RERA/1251/310/PR/170915/000170', // Palm Springs Phase 13
+      'PRM/KA/RERA/1251/446/PR/170915/000160', // Palm Springs Phase 14
+      'PRM/KA/RERA/1251/446/PR/170916/000293', // Rain forest Phase 15
+      'PRM/KA/RERA/1251/446/PR/190913/002845', // Palm Springs Phase 16
+      'PRM/KA/RERA/1251/446/PR/171031/001452', // Palm Springs Phase 17
+      'PRM/KA/RERA/1251/446/PR/171031/001467', // Tropical Greens Phase 18
+      'PRM/KA/RERA/1251/446/PR/180612/001897', // Tropical Greens Phase 19
+      'PRM/KA/RERA/1251/446/PR/180627/001929', // Tropical Greens Phase 20
+      'PRM/KA/RERA/1251/446/PR/181010/002036', // Tropical Greens Phase 21
+      'PRM/KA/RERA/1251/446/PR/181010/002037', // Tropical Greens Phase 22
+      'PRM/KA/RERA/1251/446/PR/181010/002038', // Tropical Greens Phase 23
+      'PRM/KA/RERA/1251/446/PR/181010/002039', // Tropical Greens Phase 24
+      'PRM/KA/RERA/1251/446/PR/190223/002449', // Tropical Greens Phase 25
+      'PRM/KA/RERA/1251/446/PR/190223/002448', // Tropical Greens Phase 26
+      'PRM/KA/RERA/1251/446/PR/200121/003218', // Oasis Phase 27
+    ],
+    provenance:
+      'Verified live: 27 real sub-community/phase entries registered as "Sobha Dream Acres - <Cluster> Phase N Wing M" (Rain Forest / Tropical Greens / Palm Springs / Oasis clusters), all under Sobha Limited. Same master-community naming pattern as Prestige City and Brigade El Dorado — genuinely multi-answer, not a recall@1 case.',
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Purva',
+    category: 'brand_prefix',
+    wellKnown: false,
+    acceptedRegNumbers: [
+      'PRM/KA/RERA/1251/472/PR/190204/002350', // Purva Atmosphere
+      'PRM/KA/RERA/1251/310/PR/290323/005829', // Purva Blubelle
+      'PRM/KA/RERA/1251/310/PR/170916/000235', // Purva Coronation Square
+      'PRM/KA/RERA/1251/310/PR/071022/005307', // Purva Meraki
+      'PRM/KA/RERA/1251/446/PR/150323/005796', // Purva Oakshire
+      'PRM/KA/RERA/1251/310/PR/210907/004299', // Purva Orient Grand
+      'PRM/KA/RERA/1251/446/PR/170907/000091', // Purva Palmbeach
+      'PRM/KA/RERA/1251/310/PR/220601/004946', // Purva Park Hill (Wing A)
+      'PRM/KA/RERA/1251/310/PR/220601/004947', // Purva Park Hill (Wing B)
+      'PRM/KA/RERA/1251/310/PR/220601/004948', // Purva Park Hill (Wing C)
+      'PRM/KA/RERA/1251/310/PR/220601/004949', // Purva Park Hill (Wing D)
+      'PRM/KA/RERA/1251/446/PR/200205/003243', // Purva Promenade
+      'PRM/KA/RERA/1251/310/PR/151225/008338', // Purva Silversky
+      'PRM/KA/RERA/1251/310/PR/171015/000403', // Purva Sunflower
+      'PRM/KA/RERA/1251/310/PR/170915/000394', // Purva Westend Phase 1
+      'PRM/KA/RERA/1251/309/PR/190129/002311', // Purva Zenium 1
+    ],
+    provenance:
+      'User-supplied-style deliberately vague single-word test query. Verified live: 16 real "Purva"-branded projects under Puravankara Limited (excluding the distinct "Provident" sub-brand it also uses). Extremely ambiguous by design, same reasoning as the Keerthi case — tests whether the matcher surfaces the real universe of matches, not recall@1.',
+    confidence: 'confirmed',
+  },
+  {
+    query: 'UB City',
+    category: 'pre_rera_absence',
+    wellKnown: true,
+    expectNotHighConfidence: true,
+    provenance:
+      "Verified absent from the live index: no registeredName or promoterName entry (including Prestige Estates Projects Ltd's 30+ other real registered entries, confirming it's active in RERA) contains 'UB' or plausibly matches this project. Independently confirmed via Wikipedia: UB City, a Prestige Group/UB Group joint venture, was completed in 2008 — nine years before Karnataka RERA's 2017 enactment.",
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Brigade Gardenia',
+    category: 'pre_rera_absence',
+    wellKnown: true,
+    expectNotHighConfidence: true,
+    provenance:
+      'Verified absent from the live index: none of the 40+ real "Gardenia"-named entries in the index belong to Brigade — all belong to unrelated developers. Brigade Enterprises Ltd is confirmed active in RERA via its 45+ other real registered entries. Independently confirmed via Brigade Group\'s own site: Brigade Gardenia (JP Nagar) was completed/delivered in 2009, before RERA\'s 2017 enactment.',
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Brigade Metropolis',
+    category: 'pre_rera_absence',
+    wellKnown: true,
+    expectNotHighConfidence: true,
+    provenance:
+      'Verified absent from the live index: the handful of "Metropolis"-named entries in the index belong to an unrelated developer (Metropolis Properties Private Limited), none to Brigade. Brigade Enterprises Ltd is confirmed active in RERA via its 45+ other real registered entries. Independently corroborated via multiple listings (CommonFloor, Brigade Group\'s own retail page, JLL): Brigade Metropolis was delivered around 2010, before RERA\'s 2017 enactment.',
+    confidence: 'confirmed',
   },
 ];
