@@ -1,0 +1,28 @@
+{
+  "name": "@reki/rera-resolver",
+  "version": "0.1.0",
+  "description": "Standalone library that resolves messy Karnataka RERA project names to registry records, with a tiered deterministic/LLM matcher.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "sync": "tsx scripts/sync.ts",
+    "test": "node --import tsx --test src/__tests__/**/*.test.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

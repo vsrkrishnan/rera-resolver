@@ -1,0 +1,131 @@
+export type Dataset = 'ongoing' | 'completed';
+
+export interface IndexRecord {
+  regNumber: string; // e.g. "PRM/KA/RERA/1251/446/PR/220422/004789"
+  registeredName: string; // official project name as in the registry
+  promoterName: string; // promoter/developer legal name as in the registry
+  dataset: Dataset; // which dump this row came from (see dedup rule in storage.ts)
+  // Confirmed present in the completed-projects dump (Phase 1.0 task 4); absent
+  // for ongoing rows, which are JS-array seed data with no equivalent columns.
+  projectType?: string;
+  district?: string;
+  taluk?: string;
+  proposedCompletionDate?: string;
+  appliedForCompletionDate?: string;
+  // Internal portal row id, harvested from the completed dump's "VIEW PROJECT
+  // DETAILS" button (`<a id="...">`). Only present for completed rows — the
+  // ongoing dump exposes no equivalent id anywhere in its markup (Phase 1.0
+  // task 1). Required to call the projectDetails endpoint in fetch().
+  completedRowId?: string;
+}
+
+export interface IndexSnapshot {
+  fetchedAt: string; // ISO-8601 timestamp of the sync that produced this
+  ongoingCount: number; // row count from viewAllProjects
+  completedCount: number; // row count from viewAllCompletedProjects
+  records: IndexRecord[]; // deduplicated across the two datasets by regNumber
+}
+
+export interface ResolveHints {
+  promoterName?: string; // if the caller knows the developer, narrows matching
+  // locality hint is intentionally NOT part of this interface yet: Phase 1.0
+  // did not confirm a locality field on ONGOING rows (only completed rows have
+  // district/taluk). Add back once the matcher can use it for both datasets.
+}
+
+export type MatchTier = 'exact' | 'token' | 'llm_semantic';
+
+export interface Candidate {
+  regNumber: string;
+  registeredName: string;
+  promoterName: string;
+  dataset: Dataset;
+  matchScore: number; // 0.0-1.0, comparable across candidates in one result
+  matchTier: MatchTier; // which tier produced this candidate
+  evidence: string; // human-readable reason, e.g. "token overlap 4/5; word-order variant of input"
+}
+
+export type ResolveStatus = 'high_confidence' | 'ambiguous' | 'unresolved';
+
+export interface ResolveResult {
+  status: ResolveStatus;
+  candidates: Candidate[]; // ALWAYS ranked desc by matchScore; may be empty (unresolved)
+  unresolvedReason?: 'no_candidates' | 'only_weak_candidates' | null;
+  query: { name: string; hints?: ResolveHints };
+}
+
+export type FetchState = 'complete' | 'detail_unavailable';
+
+export interface ProjectRecord {
+  regNumber: string;
+  registeredName: string;
+  promoterName: string;
+  dataset: Dataset;
+  // Populated only when the certificate/projectDetails call succeeds; omitted
+  // (not set to null/empty) when unconfirmed, per the honesty contract (spec
+  // §7.2 / §5.3's "omit, don't fake" rule).
+  projectStatus?: string;
+  projectStartDate?: string;
+  projectEndDate?: string;
+  complaintsOnPromoter?: number;
+  complaintsOnProject?: number;
+  fetchState: FetchState;
+  fetchedAt: string; // ISO-8601
+}
+
+export interface SyncResult {
+  fetchedAt: string;
+  ongoingCount: number;
+  completedCount: number;
+  investigationCount: number;
+  added: number; // vs previous snapshot
+  removed: number; // vs previous snapshot
+  ok: boolean;
+}
+
+// From rera.karnataka.gov.in/unregProjectList ("Projects Under
+// Investigation") — RERA's own enforcement/notice-response tracking list,
+// NOT a comprehensive "every unregistered project" registry. Investigated
+// 2026-07-18: 1,050 rows, published dates 2018-01-05 to 2021-10-22 with
+// nothing newer — the list is stale by several years as of any recent sync,
+// despite an (inert, not live) in-page note claiming weekly updates. No
+// regNumber exists for these rows by definition (they were never
+// registered), so this is intentionally a separate record shape from
+// IndexRecord, not merged into it.
+export type InvestigationStatus = 'no_reply' | 'reply_not_satisfactory' | 'not_satisfactory' | 'approved' | 'unknown';
+
+export interface InvestigationRecord {
+  projectName: string;
+  promoterName: string;
+  status: InvestigationStatus;
+  rawStatus: string; // verbatim text from the portal — normalization to InvestigationStatus is best-effort, not exhaustive
+  corporateAddress: string;
+  publishedDate: string; // verbatim DD-MM-YYYY as published by RERA
+}
+
+export interface InvestigationMatch extends InvestigationRecord {
+  matchScore: number;
+  evidence: string;
+}
+
+export interface InvestigationCheckResult {
+  matches: InvestigationMatch[]; // ALWAYS ranked desc by matchScore; may be empty
+  // Latest publishedDate seen anywhere in the whole dataset at last sync —
+  // i.e. how stale this entire list is, not just this query's matches.
+  // Consumers MUST surface this alongside any match; a hit here says
+  // "RERA flagged this at some point up to dataAsOf," never "as of today."
+  dataAsOf: string | null;
+  warning: string;
+  query: { name: string; hints?: ResolveHints };
+}
+
+export interface OperationCostRecord {
+  operation: 'syncIndex' | 'resolve' | 'fetch' | 'projectsByPromoter';
+  httpCalls: number;
+  llmCalls: number;
+  llmInputTokens?: number;
+  llmOutputTokens?: number;
+  llmCostInr?: number;
+  latencyMs: number;
+  at: string; // ISO-8601
+}
