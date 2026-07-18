@@ -1,5 +1,5 @@
 {
-  "name": "@reki/rera-resolver",
+  "name": "rera-resolver",
   "version": "0.1.0",
   "description": "Standalone library that resolves messy Karnataka RERA project names to registry records, with a tiered deterministic/LLM matcher.",
   "license": "MIT",

@@ -1,4 +1,4 @@
-# @reki/rera-resolver
+# rera-resolver
 
 Turns a messy real-estate project name into the correct Karnataka RERA registry record — ranked candidates, scored, with evidence, never a single silent guess.
 
@@ -20,7 +20,7 @@ Karnataka RERA's own portal has one real, unsolved problem: **name resolution**.
 ## Install
 
 ```bash
-npm install @reki/rera-resolver
+npm install rera-resolver
 ```
 
 Requires Node ≥ 20. Uses `better-sqlite3` for local storage — no external database, no hosted service.
@@ -28,7 +28,7 @@ Requires Node ≥ 20. Uses `better-sqlite3` for local storage — no external da
 ## Quick start
 
 ```ts
-import { syncIndex, resolve, fetch, projectsByPromoter, checkUnderInvestigation } from '@reki/rera-resolver';
+import { syncIndex, resolve, fetch, projectsByPromoter, checkUnderInvestigation } from 'rera-resolver';
 
 // 1. Populate the local cache (run this once, then on a schedule — weekly is
 //    plenty, since the portal itself doesn't update faster than that).
