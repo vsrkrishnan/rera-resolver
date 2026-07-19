@@ -1,5 +1,3 @@
-import type { OperationCostRecord } from './types.js';
-
 // Confirmed live (Phase 1.0): both are static server-rendered dumps, no
 // pagination, `?language=en` is the only query param needed. Do not add any
 // other endpoint here without re-running the investigation.
@@ -63,20 +61,6 @@ export async function fetchUnregisteredProjectsHtml(log?: FetchLog): Promise<str
   return resp ? await resp.text() : null;
 }
 
-// Phase 1.0: keyed by regNumber directly, works for both ongoing and
-// completed projects (verified live against real reg numbers from both
-// datasets). Returns the raw PDF bytes of the government-issued registration
-// certificate, or null on failure/timeout.
-export async function fetchCertificatePdf(regNumber: string, log?: FetchLog): Promise<ArrayBuffer | null> {
-  if (log) log.httpCalls += 1;
-  const resp = await timedFetch(
-    `https://rera.karnataka.gov.in/certificate?${new URLSearchParams({ CER_NO: regNumber })}`,
-    { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rera-resolver/0.1)' } },
-    REGISTRY_FETCH_TIMEOUT_MS,
-  );
-  return resp ? await resp.arrayBuffer() : null;
-}
-
 // Phase 1.0: only confirmed functional for completed-dataset projects, keyed
 // by the internal row id harvested from that dump's "VIEW PROJECT DETAILS"
 // button (IndexRecord.completedRowId) — NOT the registration number. Do not
@@ -97,18 +81,4 @@ export async function fetchProjectDetailsHtml(completedRowId: string, log?: Fetc
     REGISTRY_FETCH_TIMEOUT_MS,
   );
   return resp ? await resp.text() : null;
-}
-
-export function toCostRecord(
-  operation: OperationCostRecord['operation'],
-  httpCalls: number,
-  startedAt: number,
-): OperationCostRecord {
-  return {
-    operation,
-    httpCalls,
-    llmCalls: 0,
-    latencyMs: Date.now() - startedAt,
-    at: new Date().toISOString(),
-  };
 }
