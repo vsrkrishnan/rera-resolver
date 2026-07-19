@@ -50,11 +50,39 @@ export type ResolveStatus = 'high_confidence' | 'ambiguous' | 'unresolved';
 export interface ResolveResult {
   status: ResolveStatus;
   candidates: Candidate[]; // ALWAYS ranked desc by matchScore; may be empty (unresolved)
-  unresolvedReason?: 'no_candidates' | 'only_weak_candidates' | null;
+  // 'index_not_ready' means the local cache has never been built (no synced
+  // data at all) — distinct from 'no_candidates', which means a real index
+  // was searched and genuinely had no match. See ensureIndex().
+  unresolvedReason?: 'no_candidates' | 'only_weak_candidates' | 'index_not_ready' | null;
   query: { name: string; hints?: ResolveHints };
 }
 
 export type FetchState = 'complete' | 'detail_unavailable';
+
+// The portal renders promoter/company profile data as part of a PROJECT's
+// own detail page — there is no standalone promoter-profile endpoint — so
+// this shape is populated by parsing that same page (see
+// parseProjectDetails.ts's parsePromoterProfile). Two live-confirmed
+// template generations exist (a newer one, seen on ongoing projects, and an
+// older "legacy" one on projects registered years ago) with different field
+// coverage; any field a given project's page doesn't expose is correctly
+// omitted here, not faked.
+export interface PromoterProfile {
+  typeOfFirm?: string;
+  registrationNumber?: string; // CIN (company registration number)
+  pan?: string;
+  gstin?: string;
+  mainObjectives?: string;
+  address?: string;
+  district?: string;
+  taluk?: string;
+  pinCode?: string;
+  authorizedSignatory?: string;
+  ceoOrMd?: string;
+  designation?: string;
+  din?: string;
+  numberOfDirectors?: string;
+}
 
 export interface ProjectRecord {
   regNumber: string;
@@ -69,7 +97,39 @@ export interface ProjectRecord {
   projectEndDate?: string;
   complaintsOnPromoter?: number;
   complaintsOnProject?: number;
+  projectType?: string;
+  projectDescription?: string;
+  extentDevelopedPct?: string;
+  projectAddress?: string;
+  pinCode?: string;
+  latitude?: string;
+  longitude?: string;
+  approvingAuthority?: string;
+  approvedPlanNumber?: string;
+  planApprovalDate?: string;
+  totalProjectCostInr?: string;
+  totalConstructionCostInr?: string;
+  bankName?: string;
+  bankBranch?: string;
+  ifscCode?: string;
+  numberOfPlotsOrUnits?: string;
+  promoter?: PromoterProfile;
   fetchState: FetchState;
+  fetchedAt: string; // ISO-8601
+}
+
+export type PromoterFetchState = 'complete' | 'profile_unavailable';
+
+// fetchPromoter()'s return: the promoter's project list always comes from
+// the local index (cheap, always available); `profile` is only populated
+// when a representative project's detail page could be fetched and parsed
+// — omitted (not faked) otherwise, same "don't fake" discipline as
+// ProjectRecord.
+export interface PromoterRecord {
+  promoterName: string;
+  profile?: PromoterProfile;
+  projects: Candidate[];
+  fetchState: PromoterFetchState;
   fetchedAt: string; // ISO-8601
 }
 
@@ -155,7 +215,7 @@ export interface LlmClient {
 }
 
 export interface OperationCostRecord {
-  operation: 'syncIndex' | 'resolve' | 'fetch' | 'projectsByPromoter';
+  operation: 'syncIndex' | 'resolve' | 'fetch' | 'projectsByPromoter' | 'fetchPromoter';
   httpCalls: number;
   llmCalls: number;
   llmInputTokens?: number;

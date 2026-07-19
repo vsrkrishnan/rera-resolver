@@ -81,6 +81,12 @@ export const MAX_WEAK_CANDIDATES = 5;
 // like every other matcher tunable.
 export const MAX_LLM_SHORTLIST = 30;
 
+// ensureIndex()'s staleness gate. The portal itself doesn't publish updates
+// faster than this, so a snapshot older than this is worth a background
+// refresh but is not itself untrustworthy — ensureIndex() keeps serving the
+// existing snapshot while a refresh runs, never blocking a caller on it.
+export const INDEX_MAX_AGE_DAYS = 7;
+
 // Fixed score assigned to every llm_semantic candidate, deliberately between
 // `floor` (0.55) and `highConfidence` (0.92). This means an LLM-sourced
 // match can surface as a real, ranked candidate but can never by itself

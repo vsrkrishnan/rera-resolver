@@ -1,7 +1,7 @@
 import type { OperationCostRecord, ProjectRecord } from './types.js';
 import { readSnapshot, DEFAULT_DB_PATH } from './storage.js';
-import { fetchProjectDetailsHtml, type FetchLog } from './registryFetch.js';
-import { parseProjectDetails } from './parseProjectDetails.js';
+import { fetchProjectDetailsHtml, fetchOngoingProjectId, type FetchLog } from './registryFetch.js';
+import { parseProjectDetails, parsePromoterProfile } from './parseProjectDetails.js';
 
 export interface FetchOptions {
   dbPath?: string;
@@ -20,18 +20,16 @@ export class UnknownRegNumberError extends Error {
   }
 }
 
-// Phase 1.0 findings this implements:
+// Findings this implements:
 //  - completed-dataset projects: projectDetails (POST, action=<completedRowId>)
 //    is a real, working per-project detail endpoint — verified live against
-//    4 distinct row ids, each returning correct, distinct data.
-//  - ongoing-dataset projects: no working detail endpoint was found. The
-//    portal's projectViewDetails search form ignores its input and returns
-//    the full unfiltered dataset regardless of what's submitted (verified
-//    live with two different real registration numbers, byte-identical
-//    dataset both times) — calling it would not produce a real result, so we
-//    don't call it at all. This keeps the "one remote call maximum" rule
-//    trivially satisfied (zero calls) rather than spending a call on a
-//    known-broken endpoint.
+//    4 distinct row ids, each returning correct, distinct data. The id comes
+//    directly from the completed dump's own "VIEW PROJECT DETAILS" button.
+//  - ongoing-dataset projects: Phase 1.0 found no working detail endpoint
+//    (projectViewDetails's search form appeared to ignore its input). A
+//    later live re-check (2026-07-19) found that finding is now stale — see
+//    fetchOngoingProjectId's comment — so ongoing projects get one extra
+//    lookup call to find their id, then the same projectDetails call.
 export async function fetchProject(regNumber: string, options: FetchOptions = {}): Promise<ProjectRecord> {
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
   const startedAt = Date.now();
@@ -61,12 +59,19 @@ export async function fetchProject(regNumber: string, options: FetchOptions = {}
     fetchedAt: new Date().toISOString(),
   };
 
-  if (record.dataset !== 'completed' || !record.completedRowId) {
+  const rowId =
+    record.dataset === 'completed' && record.completedRowId
+      ? record.completedRowId
+      : record.dataset === 'ongoing'
+        ? await fetchOngoingProjectId(regNumber, fetchLog)
+        : null;
+
+  if (!rowId) {
     emitCost();
     return { ...base, fetchState: 'detail_unavailable' };
   }
 
-  const html = await fetchProjectDetailsHtml(record.completedRowId, fetchLog);
+  const html = await fetchProjectDetailsHtml(rowId, fetchLog);
   emitCost();
 
   if (!html) {
@@ -74,9 +79,13 @@ export async function fetchProject(regNumber: string, options: FetchOptions = {}
   }
 
   const parsed = parseProjectDetails(html);
+  const promoter = parsePromoterProfile(html);
+  const hasPromoterData = Object.values(promoter).some((v) => v !== undefined);
+
   return {
     ...base,
     ...parsed,
+    promoter: hasPromoterData ? promoter : undefined,
     fetchState: 'complete',
   };
 }

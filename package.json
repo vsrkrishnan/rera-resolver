@@ -25,14 +25,20 @@
   "exports": {
     ".": "./dist/index.js"
   },
+  "bin": {
+    "rera-resolver": "./dist/cli.js"
+  },
   "files": [
     "dist"
   ],
   "scripts": {
+    "prepare": "npm run build",
     "build": "tsc -p tsconfig.json",
-    "sync": "tsx scripts/sync.ts",
-    "measure": "tsx scripts/measure.ts",
-    "test": "node --import tsx --test src/__tests__/**/*.test.ts"
+    "postinstall": "node dist/postinstall.js || true",
+    "sync": "RERA_RESOLVER_DB_PATH=data/index.db tsx scripts/sync.ts",
+    "measure": "RERA_RESOLVER_DB_PATH=data/index.db tsx scripts/measure.ts",
+    "test": "RERA_RESOLVER_DB_PATH=data/index.db node --import tsx --test src/__tests__/**/*.test.ts",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0"

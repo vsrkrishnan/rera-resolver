@@ -108,7 +108,14 @@ export async function resolve(name: string, hints?: ResolveHints, options: Resol
     });
   };
 
-  if (!snapshot || snapshot.records.length === 0) {
+  if (!snapshot) {
+    // No file at all: the local index has never been built. Distinct from a
+    // real search coming up empty — see ensureIndex() to build/refresh it.
+    emitCost(false, null);
+    return { status: 'unresolved', candidates: [], unresolvedReason: 'index_not_ready', query };
+  }
+
+  if (snapshot.records.length === 0) {
     emitCost(false, null);
     return { status: 'unresolved', candidates: [], unresolvedReason: 'no_candidates', query };
   }

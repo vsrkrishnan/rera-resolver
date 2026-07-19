@@ -1,7 +1,8 @@
 import Database from 'better-sqlite3';
 import { existsSync, renameSync, unlinkSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 import type { IndexRecord, IndexSnapshot, InvestigationRecord } from './types.js';
 
 // SQLite over a flat JSON file (spec §4.2 — either is acceptable, this is the
@@ -9,7 +10,24 @@ import type { IndexRecord, IndexSnapshot, InvestigationRecord } from './types.js
 // (§5.4) is a natural indexed query rather than a full in-memory linear scan
 // re-implemented by hand. A relational store also leaves room for a future
 // promoter->projects edge table without a storage-layer rewrite.
-export const DEFAULT_DB_PATH = 'data/index.db';
+//
+// The path must be stable and absolute rather than cwd-relative: an installed
+// package's postinstall bootstrap and a consuming app's later resolve() call
+// run from different working directories, so a relative path would silently
+// point each of them at a different file. RERA_RESOLVER_DB_PATH lets a
+// consumer (or this repo's own dev scripts) override it explicitly.
+function resolveDefaultDbPath(): string {
+  if (process.env.RERA_RESOLVER_DB_PATH) return process.env.RERA_RESOLVER_DB_PATH;
+  return join(resolveCacheDir(), 'rera-resolver', 'index.db');
+}
+
+function resolveCacheDir(): string {
+  if (process.platform === 'darwin') return join(homedir(), 'Library', 'Caches');
+  if (process.platform === 'win32') return process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local');
+  return process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache');
+}
+
+export const DEFAULT_DB_PATH = resolveDefaultDbPath();
 
 export interface InvestigationSnapshot {
   fetchedAt: string;
