@@ -48,42 +48,11 @@ RERA_RESOLVER_DB_PATH=$(pwd)/../data/index.db node server.js
 Live endpoints cache successful responses in-memory for 1 hour (`web/cache.js`) so repeat
 views are instant and the demo tolerates brief portal downtime.
 
-## Run it in Docker
-
-```bash
-docker build -t rera-resolver-demo .
-docker run -p 3000:3000 -e PORT=3000 rera-resolver-demo
-```
-
-No index is baked into the image and none needs to be committed to git — the container
-self-heals its index against the live portal on first boot, the same as running it locally.
-The image installs `python3 make g++` so `better-sqlite3` can compile from source if no
-prebuilt binary matches the target platform.
-
-## Deploy to Render
-
-This repo includes a `render.yaml` blueprint targeting the free plan:
-
-1. Push this repo to GitHub (already the case — `origin` is
-   `github.com/vsrkrishnan/rera-resolver`).
-2. In the Render dashboard: **New → Blueprint**, point it at the repo. Render reads
-   `render.yaml` and provisions the Docker web service automatically.
-3. First deploy: the container boots with no index, so the first request after a cold start
-   pays the (small) cost of `ensureIndex()`'s bulk sync. Subsequent requests are instant until
-   the container restarts (Render's free plan has no persistent disk, so the index doesn't
-   survive a restart/spin-down — seconds of extra latency on the next cold request, not a
-   failure).
-4. To keep the index warm across restarts instead: upgrade to a paid instance type, add a
-   `disk:` block in `render.yaml` mounted at some path, and point `RERA_RESOLVER_DB_PATH` at
-   it (Render disks require a paid plan, so this isn't in the default blueprint).
-
-**Why Render and not Vercel:** the library needs a native module (`better-sqlite3`), a
-writable filesystem for its self-refreshing index, and tolerates the government portal being
-slow (no fixed timeout budget). Vercel's serverless functions fight all three — read-only
-filesystem, function timeouts, fragile native-binary packaging. Render (or any always-on
-container host — Railway, Fly.io) just runs it as a normal long-lived process, which is what
-this app actually is. The Dockerfile has no Render-specific code, so it deploys unmodified to
-any of them.
+> **Hosting note:** the live `fetch()`/`fetchPromoter()` detail calls only work from an
+> environment that can reach `rera.karnataka.gov.in` with reasonable latency. Cloud regions
+> far from India (or that the portal blocks) will time out on those calls and fall back to the
+> honest "detail unavailable" state, while local resolve/search still works. This app is meant
+> to be run locally against the live portal.
 
 ## Known limitations of the demo
 

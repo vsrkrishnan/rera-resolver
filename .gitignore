@@ -2,10 +2,6 @@ node_modules/
 dist/
 data/*.db
 data/*.db-journal
-# Exception: a prebuilt seed index is committed so the deployed demo has a
-# working index without depending on a boot-time fetch to the (US-unreachable,
-# slow) government portal. The app still self-refreshes it when it can.
-!data/index.db
 *.log
 .claude/
 .env

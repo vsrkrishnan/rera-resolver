@@ -28,12 +28,6 @@ console.log(`[rera-resolver-web] index status: ${indexStatus.status} (fetchedAt:
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Liveness probe for the host's health check: 200 as long as the process is
-// up. Deliberately independent of index readiness — a transient portal hiccup
-// during the first-boot index build must not fail the deploy (the index
-// self-heals in the background; /api/status reports readiness separately).
-app.get('/healthz', (_req, res) => res.status(200).send('ok'));
-
 app.get('/api/status', (_req, res) => {
   const snapshot = readSnapshot(DB_PATH);
   if (!snapshot) {
