@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: rera-resolver-demo
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/status
+    # No persistent disk on the free plan — the local index lives on the
+    # container's ephemeral filesystem and self-heals on boot via
+    # ensureIndex() (see web/server.js), which is 3 cheap bulk HTTP calls,
+    # not a per-record scrape. On restart/spin-down it just rebuilds.
+    # To keep the index warm across restarts instead, upgrade to a paid
+    # plan and add a `disk:` block mounted at a path passed via
+    # RERA_RESOLVER_DB_PATH — Render disks aren't available on the free tier.
