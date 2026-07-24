@@ -1,7 +1,8 @@
 node_modules
 web/node_modules
 dist
-data
+data/*.db-journal
+data/*.tmp
 .git
 .github
 .env

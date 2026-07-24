@@ -26,10 +26,14 @@ COPY web/package.json web/package-lock.json ./web/
 RUN cd web && npm ci --omit=dev
 COPY web ./web
 
-# No index.db is baked into the image or required from git — the app
-# self-heals its local index against the live portal on first boot via
-# ensureIndex() (see web/server.js). Mount a persistent disk at
-# RERA_RESOLVER_DB_PATH to avoid re-syncing on every restart.
+# Ship a prebuilt seed index (data/index.db) in the image. The government
+# portal is slow/unreachable from typical (US) cloud regions, so a boot-time
+# sync can't be relied on to build the index — with the seed present, resolve/
+# search works immediately on every fresh container. ensureIndex() still tries
+# to refresh it in the background when the portal is reachable, and keeps
+# serving the seed when it isn't. DB_PATH defaults to /app/data/index.db.
+COPY data/index.db ./data/index.db
+
 ENV NODE_ENV=production
 EXPOSE 3000
 CMD ["node", "web/server.js"]
