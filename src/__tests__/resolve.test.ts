@@ -93,6 +93,29 @@ test(
   }),
 );
 
+// Regression: projectsByPromoter used to score every token at the generic
+// default weight (never wiring in the same corpus-rarity weighting resolve()
+// uses for project names), so a single distinctive word never cleared the
+// containment-boost gate against a longer registered promoter name — e.g.
+// real-world "Nambiar" against "NAMBIAR BUILDERS PVT LTD" scored ~0 and
+// projectsByPromoter/fetchPromoter returned nothing for a plainly real
+// promoter. This fixture is too small for buildTokenStats' own corpus
+// weighting to reach realistic (production-scale) magnitudes (same reason
+// ResolveOptions.tokenWeightFn exists — see its doc comment), so a
+// real-world-calibrated weight function is injected directly, isolating the
+// one thing this regression actually checks: that projectsByPromoter wires
+// its tokenWeightFn into scorePromoterMatch at all.
+test(
+  'projectsByPromoter wires a corpus-rarity tokenWeightFn into promoter-name scoring, not just the default weight',
+  withTempDb(async (dbPath) => {
+    seed(dbPath, RECORDS);
+    const realisticWeights = (token: string) => (token === 'acme' ? 10 : 4);
+    const scoped = await projectsByPromoter('ACME', { dbPath, tokenWeightFn: realisticWeights });
+    assert.ok(scoped.length >= 1, 'a single rare token should still surface the real promoter, not score near zero');
+    assert.equal(scoped[0].regNumber, 'PRM/KA/RERA/0003');
+  }),
+);
+
 // Tier 3 (LLM semantic bridge). "M/s XYZ Developers Pvt Ltd" shares zero
 // tokens with any registeredName in RECORDS, so Tiers 0-2 alone produce no
 // signal at all — the exact zero-overlap case Tier 3 exists for.

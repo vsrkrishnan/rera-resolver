@@ -153,7 +153,14 @@ export async function projectsByPromoter(promoterName: string, options: ResolveO
   const snapshot = readSnapshot(dbPath);
   if (!snapshot) return [];
 
-  const scored = snapshot.records.map((record) => scorePromoterMatch(promoterName, record));
+  // Same corpus-rarity weighting resolve() uses for project-name matching
+  // (see getTokenWeightFn above) — without it, every token defaults to
+  // tokenSetScore's generic weight, so even a rare, distinctive surname
+  // never clears the containment-boost gate and a single-word promoter
+  // query against a multi-token registered name (e.g. "Nambiar" vs "NAMBIAR
+  // BUILDERS PVT LTD") scores near zero and is filtered out entirely.
+  const tokenWeightFn = options.tokenWeightFn ?? getTokenWeightFn(dbPath, snapshot);
+  const scored = snapshot.records.map((record) => scorePromoterMatch(promoterName, record, tokenWeightFn));
 
   return rankAndDedupe(scored)
     .filter((c) => c.matchScore >= MATCH_THRESHOLDS.floor)
