@@ -1,10 +1,11 @@
-import type { OperationCostRecord } from './types.js';
-import { readSnapshot, DEFAULT_DB_PATH } from './storage.js';
+import type { OperationCostRecord, StateCode } from './types.js';
+import { readSnapshot, resolveDbPathForState } from './storage.js';
 import { syncIndex } from './syncIndex.js';
-import { INDEX_MAX_AGE_DAYS } from './config.js';
+import { DEFAULT_STATE, INDEX_MAX_AGE_DAYS } from './config.js';
 
 export interface EnsureIndexOptions {
   dbPath?: string;
+  state?: StateCode; // which state's index to ensure (defaults to KA)
   maxAgeDays?: number;
   onLog?: (line: string) => void;
   onCost?: (record: OperationCostRecord) => void;
@@ -23,7 +24,8 @@ export interface EnsureIndexResult {
 // inside a query), and instead reports unresolvedReason: 'index_not_ready'
 // so a caller can decide when to call this.
 export async function ensureIndex(options: EnsureIndexOptions = {}): Promise<EnsureIndexResult> {
-  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
+  const state = options.state ?? DEFAULT_STATE;
+  const dbPath = options.dbPath ?? resolveDbPathForState(state);
   const maxAgeDays = options.maxAgeDays ?? INDEX_MAX_AGE_DAYS;
   const log = options.onLog ?? (() => {});
   const onCost = options.onCost;
@@ -32,7 +34,7 @@ export async function ensureIndex(options: EnsureIndexOptions = {}): Promise<Ens
 
   if (!snapshot || snapshot.records.length === 0) {
     log('[ensureIndex] no local index found — building now (this hits the live portal)...');
-    const result = await syncIndex({ dbPath, onLog: log, onCost });
+    const result = await syncIndex({ dbPath, state, onLog: log, onCost });
     return result.ok ? { status: 'built', fetchedAt: result.fetchedAt } : { status: 'unavailable' };
   }
 
@@ -47,7 +49,7 @@ export async function ensureIndex(options: EnsureIndexOptions = {}): Promise<Ens
   // that's still usable. Errors are swallowed — a failed background refresh
   // just leaves the current (stale-but-usable) snapshot in place for the next
   // ensureIndex() call to retry.
-  void syncIndex({ dbPath, onLog: log, onCost }).catch(() => {});
+  void syncIndex({ dbPath, state, onLog: log, onCost }).catch(() => {});
 
   return { status: 'refreshing', fetchedAt: snapshot.fetchedAt };
 }

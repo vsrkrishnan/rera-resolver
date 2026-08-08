@@ -1,5 +1,6 @@
 export type {
   Dataset,
+  StateCode,
   IndexRecord,
   IndexSnapshot,
   ResolveHints,
@@ -33,6 +34,7 @@ export { syncIndex } from './syncIndex.js';
 export { ensureIndex } from './ensureIndex.js';
 export type { EnsureIndexOptions, EnsureIndexStatus, EnsureIndexResult } from './ensureIndex.js';
 export {
+  DEFAULT_STATE,
   MATCH_THRESHOLDS,
   TOKEN_MATCH,
   PROMOTER_HINT,
@@ -42,4 +44,7 @@ export {
   LLM_MATCH_SCORE,
   INDEX_MAX_AGE_DAYS,
 } from './config.js';
-export { readSnapshot, readInvestigationSnapshot, DEFAULT_DB_PATH } from './storage.js';
+export { readSnapshot, readInvestigationSnapshot, DEFAULT_DB_PATH, resolveDbPathForState } from './storage.js';
+// Multi-state adapter surface: the supported states and how to look one up.
+export { SUPPORTED_STATES, getAdapter } from './adapters/registry.js';
+export type { StateAdapter, DetailRef } from './adapters/types.js';

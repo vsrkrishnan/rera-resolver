@@ -1,10 +1,11 @@
-import type { InvestigationCheckResult, InvestigationMatch, ResolveHints } from './types.js';
-import { readInvestigationSnapshot, DEFAULT_DB_PATH } from './storage.js';
+import type { InvestigationCheckResult, InvestigationMatch, ResolveHints, StateCode } from './types.js';
+import { readInvestigationSnapshot, resolveDbPathForState } from './storage.js';
 import { normalizeForCompare, tokenize, tokenSetScore } from './textSimilarity.js';
-import { MATCH_THRESHOLDS, MAX_CANDIDATES } from './config.js';
+import { DEFAULT_STATE, MATCH_THRESHOLDS, MAX_CANDIDATES } from './config.js';
 
 export interface CheckUnderInvestigationOptions {
   dbPath?: string;
+  state?: StateCode; // which state's investigation list to check (defaults to KA)
 }
 
 const STALENESS_WARNING =
@@ -25,7 +26,7 @@ export async function checkUnderInvestigation(
   hints?: ResolveHints,
   options: CheckUnderInvestigationOptions = {},
 ): Promise<InvestigationCheckResult> {
-  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
+  const dbPath = options.dbPath ?? resolveDbPathForState(options.state ?? DEFAULT_STATE);
   const snapshot = readInvestigationSnapshot(dbPath);
   const query = { name, hints };
 

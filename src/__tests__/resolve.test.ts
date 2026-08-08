@@ -84,6 +84,19 @@ test(
 );
 
 test(
+  'resolve echoes the state onto every candidate (multi-state: consumers can tell registries apart)',
+  withTempDb(async (dbPath) => {
+    // seed() writes with no explicit state, so the DB defaults to KA — the same
+    // path a pre-multi-state Karnataka index takes. readSnapshot stamps it, and
+    // the matcher echoes it onto candidates.
+    seed(dbPath, RECORDS);
+    const result = await resolve('Prestige Lakeside Habitat', undefined, { dbPath });
+    assert.ok(result.candidates.length >= 1);
+    assert.equal(result.candidates[0].state, 'KA');
+  }),
+);
+
+test(
   'projectsByPromoter matches on promoter name via the local index only',
   withTempDb(async (dbPath) => {
     seed(dbPath, RECORDS);

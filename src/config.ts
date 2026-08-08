@@ -1,3 +1,10 @@
+import type { StateCode } from './types.js';
+
+// The state used when a caller doesn't specify one — keeps the whole API
+// backward compatible (Karnataka was the only registry before multi-state
+// support). Every *Options.state defaults to this.
+export const DEFAULT_STATE: StateCode = 'KA';
+
 // Single, documented location for every tunable matcher constant (spec §5.1
 // hard rule: "Thresholds must be named constants in one config location").
 export const MATCH_THRESHOLDS = {
