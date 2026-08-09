@@ -1,10 +1,12 @@
-import type { OperationCostRecord, ProjectRecord } from './types.js';
-import { readSnapshot, DEFAULT_DB_PATH } from './storage.js';
-import { fetchProjectDetailsHtml, fetchOngoingProjectId, type FetchLog } from './registryFetch.js';
-import { parseProjectDetails, parsePromoterProfile } from './parseProjectDetails.js';
+import type { OperationCostRecord, ProjectRecord, StateCode } from './types.js';
+import { readSnapshot, resolveDbPathForState } from './storage.js';
+import type { FetchLog } from './registryFetch.js';
+import { getAdapter } from './adapters/registry.js';
+import { DEFAULT_STATE } from './config.js';
 
 export interface FetchOptions {
   dbPath?: string;
+  state?: StateCode; // which state's registry the regNumber belongs to (defaults to KA)
   onCost?: (record: OperationCostRecord) => void;
 }
 
@@ -31,7 +33,9 @@ export class UnknownRegNumberError extends Error {
 //    fetchOngoingProjectId's comment — so ongoing projects get one extra
 //    lookup call to find their id, then the same projectDetails call.
 export async function fetchProject(regNumber: string, options: FetchOptions = {}): Promise<ProjectRecord> {
-  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
+  const state = options.state ?? DEFAULT_STATE;
+  const adapter = getAdapter(state);
+  const dbPath = options.dbPath ?? resolveDbPathForState(state);
   const startedAt = Date.now();
   const fetchLog: FetchLog = { httpCalls: 0 };
   const onCost = options.onCost ?? (() => {});
@@ -56,30 +60,26 @@ export async function fetchProject(regNumber: string, options: FetchOptions = {}
     registeredName: record.registeredName,
     promoterName: record.promoterName,
     dataset: record.dataset,
+    state: record.state,
     fetchedAt: new Date().toISOString(),
   };
 
-  const rowId =
-    record.dataset === 'completed' && record.completedRowId
-      ? record.completedRowId
-      : record.dataset === 'ongoing'
-        ? await fetchOngoingProjectId(regNumber, fetchLog)
-        : null;
+  const detailRef = await adapter.resolveDetailRef(record, fetchLog);
 
-  if (!rowId) {
+  if (!detailRef) {
     emitCost();
     return { ...base, fetchState: 'detail_unavailable' };
   }
 
-  const html = await fetchProjectDetailsHtml(rowId, fetchLog);
+  const html = await adapter.fetchDetail(detailRef, fetchLog);
   emitCost();
 
   if (!html) {
     return { ...base, fetchState: 'detail_unavailable' };
   }
 
-  const parsed = parseProjectDetails(html);
-  const promoter = parsePromoterProfile(html);
+  const parsed = adapter.parseDetail(html);
+  const promoter = adapter.parsePromoter(html);
   const hasPromoterData = Object.values(promoter).some((v) => v !== undefined);
 
   return {

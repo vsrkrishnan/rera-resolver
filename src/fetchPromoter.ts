@@ -1,10 +1,12 @@
-import type { OperationCostRecord, PromoterFetchState, PromoterRecord } from './types.js';
+import type { OperationCostRecord, PromoterFetchState, PromoterRecord, StateCode } from './types.js';
 import { projectsByPromoter } from './resolve.js';
 import { fetchProject } from './fetchProject.js';
-import { DEFAULT_DB_PATH } from './storage.js';
+import { resolveDbPathForState } from './storage.js';
+import { DEFAULT_STATE } from './config.js';
 
 export interface FetchPromoterOptions {
   dbPath?: string;
+  state?: StateCode; // which state's registry to search (defaults to KA)
   onCost?: (record: OperationCostRecord) => void;
 }
 
@@ -19,12 +21,13 @@ export async function fetchPromoter(
   promoterName: string,
   options: FetchPromoterOptions = {},
 ): Promise<PromoterRecord> {
-  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
+  const state = options.state ?? DEFAULT_STATE;
+  const dbPath = options.dbPath ?? resolveDbPathForState(state);
   const startedAt = Date.now();
   const onCost = options.onCost ?? (() => {});
   const fetchedAt = new Date().toISOString();
 
-  const projects = await projectsByPromoter(promoterName, { dbPath });
+  const projects = await projectsByPromoter(promoterName, { dbPath, state });
 
   let httpCalls = 0;
   const emitCost = () =>
@@ -55,6 +58,7 @@ export async function fetchPromoter(
   // one-record-per-call contract.
   const detail = await fetchProject(representative.regNumber, {
     dbPath,
+    state,
     onCost: (record) => {
       httpCalls += record.httpCalls;
     },

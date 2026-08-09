@@ -3,7 +3,8 @@ import { existsSync, renameSync, unlinkSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
-import type { IndexRecord, IndexSnapshot, InvestigationRecord } from './types.js';
+import type { IndexRecord, IndexSnapshot, InvestigationRecord, StateCode } from './types.js';
+import { DEFAULT_STATE } from './config.js';
 
 // SQLite over a flat JSON file (spec §4.2 — either is acceptable, this is the
 // documented choice): ~13k rows is trivial for SQLite, and projectsByPromoter
@@ -28,6 +29,20 @@ function resolveCacheDir(): string {
 }
 
 export const DEFAULT_DB_PATH = resolveDefaultDbPath();
+
+// Per-state DB path. Each state gets its own SQLite file (index-ka.db,
+// index-tn.db, …) so each syncs and goes stale independently and adding a
+// state can never corrupt another's data (the writeSnapshot atomic whole-file
+// rebuild below stays per-file). An explicit RERA_RESOLVER_DB_PATH still wins
+// and pins a single file regardless of state — this is the "single-state"
+// mode the dev scripts, tests, and single-registry consumers use.
+// RERA_RESOLVER_DB_DIR overrides just the directory, keeping the per-state
+// filenames.
+export function resolveDbPathForState(state: StateCode): string {
+  if (process.env.RERA_RESOLVER_DB_PATH) return process.env.RERA_RESOLVER_DB_PATH;
+  const baseDir = process.env.RERA_RESOLVER_DB_DIR ?? join(resolveCacheDir(), 'rera-resolver');
+  return join(baseDir, `index-${state.toLowerCase()}.db`);
+}
 
 export interface InvestigationSnapshot {
   fetchedAt: string;
@@ -90,6 +105,9 @@ export function writeSnapshot(
     createSchema(db);
     const insertMeta = db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)');
     insertMeta.run('fetchedAt', snapshot.fetchedAt);
+    // Which state this DB holds. Stored once here (not as a per-row column)
+    // since a DB is single-state; readSnapshot stamps it onto every record.
+    insertMeta.run('state', snapshot.state ?? DEFAULT_STATE);
     insertMeta.run('ongoingCount', String(snapshot.ongoingCount));
     insertMeta.run('completedCount', String(snapshot.completedCount));
     insertMeta.run('investigationFetchedAt', investigations.fetchedAt);
@@ -134,12 +152,13 @@ export function writeSnapshot(
   renameSync(tmpPath, dbPath);
 }
 
-function rowToRecord(row: Record<string, unknown>): IndexRecord {
+function rowToRecord(row: Record<string, unknown>, state: StateCode): IndexRecord {
   return {
     regNumber: row.regNumber as string,
     registeredName: row.registeredName as string,
     promoterName: row.promoterName as string,
     dataset: row.dataset as IndexRecord['dataset'],
+    state,
     projectType: (row.projectType as string) ?? undefined,
     district: (row.district as string) ?? undefined,
     taluk: (row.taluk as string) ?? undefined,
@@ -170,12 +189,18 @@ export function readSnapshot(dbPath: string = DEFAULT_DB_PATH): IndexSnapshot | 
         r.value,
       ]),
     );
-    const records = (db.prepare('SELECT * FROM records').all() as Record<string, unknown>[]).map(rowToRecord);
+    // Older DB files (written before multi-state support) have no `state`
+    // meta key — they are Karnataka by definition, so default to it.
+    const state = (meta.get('state') as StateCode) ?? DEFAULT_STATE;
+    const records = (db.prepare('SELECT * FROM records').all() as Record<string, unknown>[]).map((row) =>
+      rowToRecord(row, state),
+    );
     return {
       fetchedAt: meta.get('fetchedAt') ?? '',
       ongoingCount: Number(meta.get('ongoingCount') ?? 0),
       completedCount: Number(meta.get('completedCount') ?? 0),
       records,
+      state,
     };
   } finally {
     db.close();

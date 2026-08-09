@@ -92,6 +92,7 @@ export async function runLlmSemanticBridge(
       registeredName: record.registeredName,
       promoterName: record.promoterName,
       dataset: record.dataset,
+      state: record.state,
       matchScore: LLM_MATCH_SCORE,
       matchTier: 'llm_semantic',
       evidence: `LLM semantic match: ${match.reasoning}`,

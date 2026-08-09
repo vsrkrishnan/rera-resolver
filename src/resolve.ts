@@ -8,15 +8,19 @@ import type {
   ResolveHints,
   ResolveResult,
 } from './types.js';
-import { readSnapshot, DEFAULT_DB_PATH } from './storage.js';
+import type { StateCode } from './types.js';
+import { readSnapshot, resolveDbPathForState } from './storage.js';
 import { scoreAll, scorePromoterMatch, rankAndDedupe } from './matcher.js';
-import { MATCH_THRESHOLDS, MAX_CANDIDATES, MAX_WEAK_CANDIDATES } from './config.js';
+import { DEFAULT_STATE, MATCH_THRESHOLDS, MAX_CANDIDATES, MAX_WEAK_CANDIDATES } from './config.js';
 import type { TokenWeightFn } from './textSimilarity.js';
 import { buildTokenStats, makeTokenWeightFn } from './tokenStats.js';
 import { buildShortlist, runLlmSemanticBridge } from './llmBridge.js';
 
 export interface ResolveOptions {
   dbPath?: string;
+  // Which state's registry to search. Defaults to Karnataka. Selects the
+  // per-state DB (index-<state>.db) when dbPath isn't given explicitly.
+  state?: StateCode;
   // Overrides the corpus-rarity weighting resolve() would otherwise compute
   // from the snapshot itself. Production callers should never need this —
   // it exists so tests can inject known, real-world-calibrated weights
@@ -90,7 +94,7 @@ function buildResult(
 //  - thresholds come from the single config.ts location, not inline magic
 //    numbers.
 export async function resolve(name: string, hints?: ResolveHints, options: ResolveOptions = {}): Promise<ResolveResult> {
-  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
+  const dbPath = options.dbPath ?? resolveDbPathForState(options.state ?? DEFAULT_STATE);
   const startedAt = Date.now();
   const snapshot = readSnapshot(dbPath);
   const query = { name, hints };
@@ -149,7 +153,7 @@ export async function resolve(name: string, hints?: ResolveHints, options: Resol
 // Promoter names vary just as project names do, so this reuses the same
 // token-set matcher rather than a plain substring/equality check.
 export async function projectsByPromoter(promoterName: string, options: ResolveOptions = {}): Promise<Candidate[]> {
-  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
+  const dbPath = options.dbPath ?? resolveDbPathForState(options.state ?? DEFAULT_STATE);
   const snapshot = readSnapshot(dbPath);
   if (!snapshot) return [];
 

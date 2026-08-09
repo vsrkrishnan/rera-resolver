@@ -1,10 +1,20 @@
 export type Dataset = 'ongoing' | 'completed';
 
+// The Indian state whose RERA registry a record belongs to. Each state runs
+// its own portal; a StateAdapter (see src/adapters) encapsulates one state's
+// portal. Karnataka is the reference implementation.
+export type StateCode = 'KA' | 'TN' | 'MH';
+
 export interface IndexRecord {
   regNumber: string; // e.g. "PRM/KA/RERA/1251/446/PR/220422/004789"
   registeredName: string; // official project name as in the registry
   promoterName: string; // promoter/developer legal name as in the registry
   dataset: Dataset; // which dump this row came from (see dedup rule in storage.ts)
+  // Which state's registry this row came from. Optional on freshly-parsed
+  // records (a state's parser is inherently single-state, so it doesn't stamp
+  // this); populated by readSnapshot from the DB's `state` meta key, so every
+  // record on a real read path (resolve/fetch/promoter) carries it.
+  state?: StateCode;
   // Confirmed present in the completed-projects dump (Phase 1.0 task 4); absent
   // for ongoing rows, which are JS-array seed data with no equivalent columns.
   projectType?: string;
@@ -24,10 +34,12 @@ export interface IndexSnapshot {
   ongoingCount: number; // row count from viewAllProjects
   completedCount: number; // row count from viewAllCompletedProjects
   records: IndexRecord[]; // deduplicated across the two datasets by regNumber
+  state?: StateCode; // which state this snapshot belongs to (defaults to KA if absent)
 }
 
 export interface ResolveHints {
   promoterName?: string; // if the caller knows the developer, narrows matching
+  state?: StateCode; // optional: which state's registry to search (defaults to KA)
   // locality hint is intentionally NOT part of this interface yet: Phase 1.0
   // did not confirm a locality field on ONGOING rows (only completed rows have
   // district/taluk). Add back once the matcher can use it for both datasets.
@@ -40,6 +52,7 @@ export interface Candidate {
   registeredName: string;
   promoterName: string;
   dataset: Dataset;
+  state?: StateCode; // which state's registry this candidate came from (echoed from the matched record)
   matchScore: number; // 0.0-1.0, comparable across candidates in one result
   matchTier: MatchTier; // which tier produced this candidate
   evidence: string; // human-readable reason, e.g. "token overlap 4/5; word-order variant of input"
@@ -89,6 +102,7 @@ export interface ProjectRecord {
   registeredName: string;
   promoterName: string;
   dataset: Dataset;
+  state?: StateCode; // which state's registry this project came from (echoed from the index record)
   // Populated only when the certificate/projectDetails call succeeds; omitted
   // (not set to null/empty) when unconfirmed, per the honesty contract (spec
   // §7.2 / §5.3's "omit, don't fake" rule).
