@@ -40,20 +40,21 @@ export const karnatakaAdapter: StateAdapter = {
     return parseInvestigationList(raw);
   },
 
+  // One detail page yields both the project detail and the promoter profile.
   // Completed rows carry the portal row id straight from the list dump; ongoing
   // rows have no id in the dump and need the extra projectViewDetails lookup.
-  async resolveDetailRef(record, log) {
-    if (record.dataset === 'completed' && record.completedRowId) return record.completedRowId;
-    if (record.dataset === 'ongoing') return await fetchOngoingProjectId(record.regNumber, log);
-    return null;
-  },
-  fetchDetail(ref, log) {
-    return fetchProjectDetailsHtml(ref, log);
-  },
-  parseDetail(raw) {
-    return parseProjectDetails(raw);
-  },
-  parsePromoter(raw) {
-    return parsePromoterProfile(raw);
+  async fetchDetail(record, log) {
+    const rowId =
+      record.dataset === 'completed' && record.completedRowId
+        ? record.completedRowId
+        : record.dataset === 'ongoing'
+          ? await fetchOngoingProjectId(record.regNumber, log)
+          : null;
+    if (!rowId) return null;
+
+    const html = await fetchProjectDetailsHtml(rowId, log);
+    if (!html) return null;
+
+    return { detail: parseProjectDetails(html), promoter: parsePromoterProfile(html) };
   },
 };

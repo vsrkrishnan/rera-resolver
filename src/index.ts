@@ -47,4 +47,4 @@ export {
 export { readSnapshot, readInvestigationSnapshot, DEFAULT_DB_PATH, resolveDbPathForState } from './storage.js';
 // Multi-state adapter surface: the supported states and how to look one up.
 export { SUPPORTED_STATES, getAdapter } from './adapters/registry.js';
-export type { StateAdapter, DetailRef } from './adapters/types.js';
+export type { StateAdapter, FetchedDetail } from './adapters/types.js';

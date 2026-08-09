@@ -1,4 +1,13 @@
-export type Dataset = 'ongoing' | 'completed';
+// Which bulk list a record came from. Karnataka splits its registry into
+// 'ongoing' and 'completed' dumps. Some states don't split that way — Tamil
+// Nadu, for instance, exposes one registered-projects pool with no
+// ongoing/completed distinction (a free-text status field whose meaning
+// differs by category, not a clean split) — so 'registered' is the neutral
+// value for "a registered project, not classified ongoing vs completed". It
+// carries no ongoing/completed claim; consumers must not infer completion
+// state from it. dedupeRecords' ongoing<completed preference simply doesn't
+// apply to it.
+export type Dataset = 'ongoing' | 'completed' | 'registered';
 
 // The Indian state whose RERA registry a record belongs to. Each state runs
 // its own portal; a StateAdapter (see src/adapters) encapsulates one state's

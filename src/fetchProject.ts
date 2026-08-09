@@ -64,28 +64,21 @@ export async function fetchProject(regNumber: string, options: FetchOptions = {}
     fetchedAt: new Date().toISOString(),
   };
 
-  const detailRef = await adapter.resolveDetailRef(record, fetchLog);
-
-  if (!detailRef) {
-    emitCost();
-    return { ...base, fetchState: 'detail_unavailable' };
-  }
-
-  const html = await adapter.fetchDetail(detailRef, fetchLog);
+  const result = await adapter.fetchDetail(record, fetchLog);
   emitCost();
 
-  if (!html) {
+  if (!result) {
     return { ...base, fetchState: 'detail_unavailable' };
   }
 
-  const parsed = adapter.parseDetail(html);
-  const promoter = adapter.parsePromoter(html);
-  const hasPromoterData = Object.values(promoter).some((v) => v !== undefined);
+  const hasPromoterData = result.promoter
+    ? Object.values(result.promoter).some((v) => v !== undefined)
+    : false;
 
   return {
     ...base,
-    ...parsed,
-    promoter: hasPromoterData ? promoter : undefined,
+    ...result.detail,
+    promoter: hasPromoterData ? result.promoter : undefined,
     fetchState: 'complete',
   };
 }
