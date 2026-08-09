@@ -27,7 +27,11 @@ interface CaseResult {
 }
 
 async function runCase(evalCase: EvalCase): Promise<CaseResult> {
-  const r = await resolve(evalCase.query);
+  // Each case resolves against its own state's index (default KA). With
+  // RERA_RESOLVER_DB_DIR=data set by the npm script, state selects
+  // data/index-<state>.db — so KA cases hit the KA index and TN cases the TN
+  // index, in one run.
+  const r = await resolve(evalCase.query, undefined, { state: evalCase.state });
   const top1 = r.candidates.slice(0, 1).map((c) => c.regNumber);
   const top5 = r.candidates.slice(0, 5).map((c) => c.regNumber);
 

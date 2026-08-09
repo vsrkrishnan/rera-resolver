@@ -66,7 +66,8 @@ function createSchema(db: Database.Database): void {
       taluk TEXT,
       proposedCompletionDate TEXT,
       appliedForCompletionDate TEXT,
-      completedRowId TEXT
+      completedRowId TEXT,
+      detailRefs TEXT
     );
     CREATE INDEX idx_records_promoter ON records(promoterName);
     CREATE TABLE investigations (
@@ -116,9 +117,9 @@ export function writeSnapshot(
     const insertRecord = db.prepare(`
       INSERT INTO records (
         regNumber, registeredName, promoterName, dataset,
-        projectType, district, taluk, proposedCompletionDate, appliedForCompletionDate, completedRowId
+        projectType, district, taluk, proposedCompletionDate, appliedForCompletionDate, completedRowId, detailRefs
       ) VALUES (@regNumber, @registeredName, @promoterName, @dataset,
-        @projectType, @district, @taluk, @proposedCompletionDate, @appliedForCompletionDate, @completedRowId)
+        @projectType, @district, @taluk, @proposedCompletionDate, @appliedForCompletionDate, @completedRowId, @detailRefs)
     `);
     const insertInvestigation = db.prepare(`
       INSERT INTO investigations (projectName, promoterName, status, rawStatus, corporateAddress, publishedDate)
@@ -138,6 +139,7 @@ export function writeSnapshot(
           proposedCompletionDate: r.proposedCompletionDate ?? null,
           appliedForCompletionDate: r.appliedForCompletionDate ?? null,
           completedRowId: r.completedRowId ?? null,
+          detailRefs: r.detailRefs ? JSON.stringify(r.detailRefs) : null,
         });
       }
       for (const inv of investigationRecords) {
@@ -165,6 +167,8 @@ function rowToRecord(row: Record<string, unknown>, state: StateCode): IndexRecor
     proposedCompletionDate: (row.proposedCompletionDate as string) ?? undefined,
     appliedForCompletionDate: (row.appliedForCompletionDate as string) ?? undefined,
     completedRowId: (row.completedRowId as string) ?? undefined,
+    // Older DB files predate this column; SELECT * simply won't have the key.
+    detailRefs: row.detailRefs ? (JSON.parse(row.detailRefs as string) as Record<string, string>) : undefined,
   };
 }
 

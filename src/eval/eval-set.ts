@@ -7,11 +7,17 @@
 // further requires more real queries with real verified outcomes, not
 // synthetic padding.
 
+import type { StateCode } from '../types.js';
+
 export type EvalConfidence = 'confirmed' | 'high_confidence_inferred' | 'unconfirmed';
 export type EvalCategory = 'typo' | 'master_community' | 'brand_prefix' | 'phased_project' | 'pre_rera_absence';
 
 export interface EvalCase {
   query: string;
+  // Which state's registry this case is verified against. Defaults to KA when
+  // omitted (every original case predates multi-state and is Karnataka).
+  // measure.ts resolves each case against its own state's index.
+  state?: StateCode;
   category: EvalCategory;
   wellKnown: boolean;
   provenance: string;

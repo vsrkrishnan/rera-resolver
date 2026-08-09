@@ -35,9 +35,9 @@
     "prepare": "npm run build",
     "build": "tsc -p tsconfig.json",
     "postinstall": "node dist/postinstall.js || true",
-    "sync": "RERA_RESOLVER_DB_PATH=data/index.db tsx scripts/sync.ts",
-    "measure": "RERA_RESOLVER_DB_PATH=data/index.db tsx scripts/measure.ts",
-    "test": "RERA_RESOLVER_DB_PATH=data/index.db node --import tsx --test src/__tests__/**/*.test.ts",
+    "sync": "RERA_RESOLVER_DB_DIR=data tsx scripts/sync.ts",
+    "measure": "RERA_RESOLVER_DB_DIR=data tsx scripts/measure.ts",
+    "test": "node --import tsx --test src/__tests__/**/*.test.ts",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

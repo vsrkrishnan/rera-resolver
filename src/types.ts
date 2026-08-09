@@ -36,6 +36,13 @@ export interface IndexRecord {
   // ongoing dump exposes no equivalent id anywhere in its markup (Phase 1.0
   // task 1). Required to call the projectDetails endpoint in fetch().
   completedRowId?: string;
+  // Opaque, per-state detail-routing tokens harvested from the list row and
+  // needed later by the adapter's fetchDetail() — for portals that key detail
+  // pages by a random id present only in the list HTML (not derivable from the
+  // regNumber). Tamil Nadu stores its two detail-page URLs here
+  // ({ project, promoter }); Karnataka doesn't use it (it has completedRowId).
+  // The engine treats this as an opaque bag; only the owning adapter reads it.
+  detailRefs?: Record<string, string>;
 }
 
 export interface IndexSnapshot {

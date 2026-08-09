@@ -84,6 +84,17 @@ test('adapter registry: Karnataka is supported and shaped correctly; an unimplem
   assert.equal(ka.code, 'KA');
   assert.deepEqual(ka.datasets, ['ongoing', 'completed']);
   assert.equal(ka.hasInvestigationList, true);
-  // TN has no adapter yet — must fail loudly, not silently crawl the wrong portal.
-  assert.throws(() => getAdapter('TN'), /No RERA adapter for state "TN"/);
+  // MH has no adapter yet — must fail loudly, not silently crawl the wrong portal.
+  assert.throws(() => getAdapter('MH'), /No RERA adapter for state "MH"/);
+});
+
+test('adapter registry: Tamil Nadu is supported and shaped for a single unsplit registered pool', () => {
+  assert.ok(SUPPORTED_STATES.includes('TN'));
+  const tn = getAdapter('TN');
+  assert.equal(tn.code, 'TN');
+  assert.equal(tn.name, 'Tamil Nadu');
+  // TN has no ongoing/completed split — one 'registered' pool — and no
+  // Karnataka-style investigation list.
+  assert.deepEqual(tn.datasets, ['registered']);
+  assert.equal(tn.hasInvestigationList, false);
 });
