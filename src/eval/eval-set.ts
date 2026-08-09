@@ -298,4 +298,37 @@ export const EVAL_SET: EvalCase[] = [
       'Verified absent from the live index: the handful of "Metropolis"-named entries in the index belong to an unrelated developer (Metropolis Properties Private Limited), none to Brigade. Brigade Enterprises Ltd is confirmed active in RERA via its 45+ other real registered entries. Independently corroborated via multiple listings (CommonFloor, Brigade Group\'s own retail page, JLL): Brigade Metropolis was delivered around 2010, before RERA\'s 2017 enactment.',
     confidence: 'confirmed',
   },
+
+  // --- Tamil Nadu (TN). Verified against the live TN index (online Building +
+  // Layout tables) synced 2026-08-09. These resolve against data/index-tn.db.
+  {
+    query: 'Thiruvotiyur Scheme',
+    state: 'TN',
+    category: 'typo',
+    wellKnown: false,
+    acceptedRegNumbers: ['TNRERA/29/BLG/0001/2026'],
+    provenance:
+      'Verified against the live TN index (online Building table) synced 2026-08-09: the correctly-spelled "Thiruvottiyur Scheme" (promoter TNUHDB) is TNRERA/29/BLG/0001/2026. This single-dropped-letter typo ("Thiruvotiyur") resolves to it at high_confidence, top-ranked.',
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Hill View Haven Phase 2',
+    state: 'TN',
+    category: 'phased_project',
+    wellKnown: false,
+    acceptedRegNumbers: ['TNRERA/11/LO/0001/2026'],
+    provenance:
+      'Verified against the live TN index (online Layout table) synced 2026-08-09: "HILL VIEW HAVEN PHASE-2" (promoter M/s.MATRIX SHELTERS) is TNRERA/11/LO/0001/2026, returned as the top match.',
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Casagrand',
+    state: 'TN',
+    category: 'brand_prefix',
+    wellKnown: true,
+    expectNotHighConfidence: true,
+    provenance:
+      'Verified against the live TN index synced 2026-08-09: "Casagrand" is a builder brand shared by 10+ real registered TN projects (CASAGRAND AQUAGROVE, CASAGRAND ASCENTIA, CASAGRAND VENTRA, ...), with no single project registered as just "Casagrand". The bare brand token correctly returns ambiguous (all candidates Casagrand-branded) and must never assert a single high_confidence match — the same brand-prefix bar as the Karnataka cases above.',
+    confidence: 'confirmed',
+  },
 ];

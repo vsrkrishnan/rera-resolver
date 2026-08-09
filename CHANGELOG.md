@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file. Format is b
 
 ## [Unreleased]
 
+### Added
+
+- **Multi-state support via a pluggable `StateAdapter`.** The engine (resolve, matcher, storage,
+  syncIndex, fetch) is now state-agnostic and drives each state's registry through an adapter.
+  A `state` option (default `'KA'`) on every public function, a `--state` CLI flag, per-state
+  indexes (`index-<state>.db`), and `state` echoed onto `Candidate` / `ProjectRecord`.
+- **Tamil Nadu adapter (`state: 'TN'`).** Resolves messy TN project names against the online
+  registered-project tables (Building + Layout, ~3,400 projects) and fetches live project +
+  promoter detail. See [docs/caveats.md](docs/caveats.md) for TN's coverage limits.
+
+### Changed
+
+- `Dataset` gains a neutral `'registered'` value for states without an ongoing/completed split
+  (Tamil Nadu). The adapter detail interface is now a single encapsulated
+  `fetchDetail(record) -> { detail, promoter }`. `IndexRecord` gains an opaque `detailRefs` bag
+  for portals that key detail pages by a per-row id.
+
+
 ## [0.1.0] - 2026-07-19
 
 Initial release.

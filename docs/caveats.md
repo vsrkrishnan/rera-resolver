@@ -5,12 +5,14 @@
 For normal use you need just two things:
 
 - **Node ≥ 20** — uses the global `fetch` and ESM.
-- **Outbound network access to `rera.karnataka.gov.in`.** This is the only external host the
-  library ever contacts (no API key, no other host, and **never a web search** to decide a
-  match). It's needed to build/refresh the local index (on install, via `npx rera-resolver sync`,
-  or whenever the cache goes stale) and by `fetch()` for live project detail. If that host isn't
-  reachable — offline install, locked-down CI network — bootstrap simply fails gracefully; run
-  `npx rera-resolver sync` later from an environment that can reach it.
+- **Outbound network access to the RERA portal(s) for the state(s) you use.** The library
+  contacts one government host per supported state — `rera.karnataka.gov.in` for Karnataka,
+  `rera.tn.gov.in` for Tamil Nadu — and nothing else (no API key, no other host, and **never a
+  web search** to decide a match). Each host is needed to build/refresh that state's local index
+  (on install, via `npx rera-resolver sync [--state <code>]`, or whenever the cache goes stale)
+  and by `fetch()` for live project detail. If a host isn't reachable — offline install,
+  locked-down CI network, or a cloud region the portal is slow to answer from — bootstrap simply
+  fails gracefully; run `npx rera-resolver sync` later from an environment that can reach it.
 
 Two more things you almost certainly already have: **local disk write access** to your user cache
 directory (where the SQLite index lives), and — only if you opt into the Tier 3 semantic bridge
@@ -37,3 +39,25 @@ toolchain** to compile it from source.
   reason.
 - **`resolve()` never auto-confirms.** `status: 'high_confidence'` is advisory only — you decide
   what to do with the ranked candidate list, especially `'ambiguous'` results.
+
+### State-specific coverage
+
+Each state is a separate registry with its own portal, index (`index-<state>.db`), and quirks.
+Pass `state` in the options (or `--state` on the CLI) to target one; it defaults to Karnataka.
+
+- **Karnataka (`KA`)** — the reference. Ongoing + completed datasets, live project + promoter
+  detail, and the "Projects Under Investigation" list (stale, as above).
+- **Tamil Nadu (`TN`)** — covers the **online** registered-project tables only (Building +
+  Layout, ~3,400 projects). Honest limits, by design:
+  - The 2017–2025 **offline archives are not indexed** yet (the portal exposes no detail page
+    for them, only PDFs), so resolving a TN project registered before 2026 may not find it.
+  - TN has **no ongoing/completed split** — every TN record's `dataset` is `'registered'`, which
+    carries no completion claim.
+  - Live detail exposes **fewer fields than Karnataka**: project type, completion date, address,
+    GPS, and plan-approval details, plus a promoter profile (type, registration no., PAN, address)
+    — but **no project cost, bank details, complaint counts, or status**, because the TN portal
+    doesn't publish them. Absent fields are `undefined`, never faked.
+  - The promoter **name comes combined with its address**, and **PAN is published masked**
+    (e.g. `XXXXXX230D`); both are stored verbatim as the portal presents them.
+  - TN has **no `checkUnderInvestigation()` equivalent** — it has no Karnataka-style enforcement
+    list, so that call returns empty for `state: 'TN'`.
