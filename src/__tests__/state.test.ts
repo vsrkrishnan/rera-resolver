@@ -82,7 +82,11 @@ test('adapter registry: Karnataka is supported and shaped correctly; an unimplem
   assert.ok(SUPPORTED_STATES.includes('KA'));
   const ka = getAdapter('KA');
   assert.equal(ka.code, 'KA');
-  assert.deepEqual(ka.datasets, ['ongoing', 'completed']);
+  // Two crawl sources; the engine drives them opaquely (see CrawlSource).
+  assert.deepEqual(
+    ka.sources.map((s) => s.id),
+    ['ongoing', 'completed'],
+  );
   assert.equal(ka.hasInvestigationList, true);
   // MH has no adapter yet — must fail loudly, not silently crawl the wrong portal.
   assert.throws(() => getAdapter('MH'), /No RERA adapter for state "MH"/);
@@ -93,8 +97,11 @@ test('adapter registry: Tamil Nadu is supported and shaped for a single unsplit 
   const tn = getAdapter('TN');
   assert.equal(tn.code, 'TN');
   assert.equal(tn.name, 'Tamil Nadu');
-  // TN has no ongoing/completed split — one 'registered' pool — and no
-  // Karnataka-style investigation list.
-  assert.deepEqual(tn.datasets, ['registered']);
+  // TN crawls three sources — the online e-registered tables plus the offline
+  // building and layout archives — and has no Karnataka-style investigation list.
+  assert.deepEqual(
+    tn.sources.map((s) => s.id).sort(),
+    ['offline-building', 'offline-layout', 'online'],
+  );
   assert.equal(tn.hasInvestigationList, false);
 });

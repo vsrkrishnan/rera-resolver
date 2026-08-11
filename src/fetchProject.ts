@@ -55,12 +55,21 @@ export async function fetchProject(regNumber: string, options: FetchOptions = {}
     throw new UnknownRegNumberError(regNumber);
   }
 
+  // Official source documents the state publishes for this project (PDF only —
+  // so a portal's internal detail-page refs, which the adapter uses for live
+  // fetching, are never exposed as "documents"). Currently this surfaces Tamil
+  // Nadu's offline scanned PDFs (approval / carpet-area), whose structured
+  // detail the portal doesn't expose. Omitted when there are none.
+  const documents = Object.fromEntries(
+    Object.entries(record.detailRefs ?? {}).filter(([, url]) => url.toLowerCase().endsWith('.pdf')),
+  );
   const base = {
     regNumber: record.regNumber,
     registeredName: record.registeredName,
     promoterName: record.promoterName,
     dataset: record.dataset,
     state: record.state,
+    ...(Object.keys(documents).length > 0 ? { documents } : {}),
     fetchedAt: new Date().toISOString(),
   };
 

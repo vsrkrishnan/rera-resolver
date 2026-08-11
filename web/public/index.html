@@ -10,26 +10,24 @@
   <header>
     <h1>RERA Resolver</h1>
     <p class="tagline">
-      Karnataka's RERA portal only searches exact spelling. Type the messy, human name you
+      State RERA portals only match exact spelling. Type the messy, human name you
       actually know a project by — see it resolved to the real registry record.
     </p>
   </header>
 
   <main>
     <section class="search">
+      <div class="state-picker">
+        <span class="state-picker-label">Registry</span>
+        <div class="state-toggle" id="state-toggle" role="group" aria-label="Which state's RERA registry to search"></div>
+      </div>
       <form id="search-form">
-        <input id="name-input" type="text" placeholder="Project name, e.g. Godraj United" autocomplete="off" />
+        <input id="name-input" type="text" placeholder="Project name" autocomplete="off" />
         <input id="promoter-input" type="text" placeholder="Developer name" autocomplete="off" />
         <button type="submit">Resolve</button>
       </form>
       <p class="search-hint" id="search-hint"></p>
-      <div class="examples">
-        Try:
-        <button class="chip" data-name="Godraj United">Godraj United</button>
-        <button class="chip" data-name="Lakeside Habitat" data-promoter="Prestige">Lakeside Habitat</button>
-        <button class="chip" data-name="Brigade El Dorado">Brigade El Dorado</button>
-        <button class="chip" data-promoter="Prestige Habitat Ventures">Just a developer name →</button>
-      </div>
+      <div class="examples" id="examples"></div>
     </section>
 
     <section id="resolve-result" class="hidden"></section>

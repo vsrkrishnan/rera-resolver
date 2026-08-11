@@ -46,3 +46,45 @@ export function fetchLayoutListHtml(log?: FetchLog): Promise<string | null> {
 export function fetchDetailPageHtml(url: string, log?: FetchLog): Promise<string | null> {
   return timedGet(url, DETAIL_TIMEOUT_MS, log);
 }
+
+// --- Offline archives (paper-filed projects, 2017 onward) --------------------
+//
+// TN published its early (pre-online-portal) registrations as per-year HTML
+// tables, one page per year, reachable from a category landing page:
+//   /building/list-project -> links to /building/offline/<year>
+//   /layout/list-project   -> links to /layout/offline/<year>
+// We discover the year-page URLs from the landing page rather than hardcoding
+// the range, so a newly-published year is picked up automatically. Each
+// category's year pages share one table shape (8 columns) and are concatenated
+// into a single payload for one parser (parseTnOfflineList). Detail for these
+// rows is only scanned PDFs (or absent), so there are no per-project detail
+// pages to key — the live PDF URLs are harvested into detailRefs for reference.
+const OFFLINE_INDEX = {
+  building: `${TN_HOST}/building/list-project`,
+  layout: `${TN_HOST}/layout/list-project`,
+} as const;
+
+async function fetchOfflineCategoryHtml(
+  category: 'building' | 'layout',
+  log?: FetchLog,
+): Promise<string | null> {
+  const index = await timedGet(OFFLINE_INDEX[category], LIST_TIMEOUT_MS, log);
+  if (index === null) return null;
+
+  // e.g. https://rera.tn.gov.in/building/offline/2020 — dedupe and sort.
+  const yearUrlRe = new RegExp(`${TN_HOST}/${category}/offline/\\d+`, 'g');
+  const yearUrls = [...new Set(index.match(yearUrlRe) ?? [])].sort();
+  if (yearUrls.length === 0) return null; // landing page shape changed — treat as a fetch failure
+
+  const pages = await Promise.all(yearUrls.map((u) => timedGet(u, LIST_TIMEOUT_MS, log)));
+  if (pages.some((p) => p === null)) return null; // any year page failing fails the whole source
+  return pages.join('\n');
+}
+
+export function fetchOfflineBuildingHtml(log?: FetchLog): Promise<string | null> {
+  return fetchOfflineCategoryHtml('building', log);
+}
+
+export function fetchOfflineLayoutHtml(log?: FetchLog): Promise<string | null> {
+  return fetchOfflineCategoryHtml('layout', log);
+}

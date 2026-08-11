@@ -299,8 +299,9 @@ export const EVAL_SET: EvalCase[] = [
     confidence: 'confirmed',
   },
 
-  // --- Tamil Nadu (TN). Verified against the live TN index (online Building +
-  // Layout tables) synced 2026-08-09. These resolve against data/index-tn.db.
+  // --- Tamil Nadu (TN). Verified against the live TN index synced 2026-08-09
+  // (online Building + Layout tables) and 2026-08-11 (offline paper-filed
+  // archives added). These resolve against data/index-tn.db.
   {
     query: 'Thiruvotiyur Scheme',
     state: 'TN',
@@ -329,6 +330,34 @@ export const EVAL_SET: EvalCase[] = [
     expectNotHighConfidence: true,
     provenance:
       'Verified against the live TN index synced 2026-08-09: "Casagrand" is a builder brand shared by 10+ real registered TN projects (CASAGRAND AQUAGROVE, CASAGRAND ASCENTIA, CASAGRAND VENTRA, ...), with no single project registered as just "Casagrand". The bare brand token correctly returns ambiguous (all candidates Casagrand-branded) and must never assert a single high_confidence match — the same brand-prefix bar as the Karnataka cases above.',
+    confidence: 'confirmed',
+  },
+
+  // --- TN offline archive (paper-filed projects, reg `TN/…`). These older,
+  // well-known projects are absent from the online-only slice and only became
+  // resolvable once the offline archives were crawled (2026-08-11).
+  {
+    query: 'Purva Windermere',
+    state: 'TN',
+    category: 'phased_project',
+    wellKnown: true,
+    acceptedRegNumbers: [
+      'TN/29/Building/0008/2023', // Phase-4A
+      'TN/29/Building/0009/2023', // Phase-4B
+      'TN/29/Building/0010/2023', // Phase-4C
+    ],
+    provenance:
+      "Verified against the live TN index including the OFFLINE (paper-filed) Building archive, synced 2026-08-11: Puravankara Limited's Chennai project is registered across three phases \"Purva Windermere Phase-4A/4B/4C\" (TN/29/Building/0008–0010/2023). The bare brand query returns them ambiguous (each ~0.95) with a phase top-ranked. This project is entirely absent from the online-only slice — it is the worked proof that the offline archive makes older projects resolvable.",
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Baashyaam Crown',
+    state: 'TN',
+    category: 'brand_prefix',
+    wellKnown: false,
+    expectNotHighConfidence: true,
+    provenance:
+      'Verified against the live TN index (offline Building archive) synced 2026-08-11: Baashyaam Constructions\' offline project is registered as "Crown Residences" (TN/29/Building/0184/2020), NOT "Baashyaam Crown" — no project carries that exact name, and "crown" is a common token shared by many unrelated projects (Royal Crown, Casagrand Crown, Crown City, ...). The bare query therefore correctly returns ambiguous and must never assert a single high_confidence match. (With a promoter hint of "Baashyaam Constructions", the query "Crown Residences" resolves exact/high_confidence — but the un-hinted brand query is honestly ambiguous.)',
     confidence: 'confirmed',
   },
 ];

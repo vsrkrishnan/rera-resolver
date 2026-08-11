@@ -11,16 +11,29 @@ All notable changes to this project will be documented in this file. Format is b
   syncIndex, fetch) is now state-agnostic and drives each state's registry through an adapter.
   A `state` option (default `'KA'`) on every public function, a `--state` CLI flag, per-state
   indexes (`index-<state>.db`), and `state` echoed onto `Candidate` / `ProjectRecord`.
-- **Tamil Nadu adapter (`state: 'TN'`).** Resolves messy TN project names against the online
-  registered-project tables (Building + Layout, ~3,400 projects) and fetches live project +
-  promoter detail. See [docs/caveats.md](docs/caveats.md) for TN's coverage limits.
+- **Tamil Nadu adapter (`state: 'TN'`).** Resolves messy TN project names against both the online
+  registered-project tables (Building + Layout, ~3,400 projects) **and the offline paper-filed
+  archives** (per-year 2017–2025, ~14,000 projects) — ~17,600 total — and fetches live project +
+  promoter detail for online projects. See [docs/caveats.md](docs/caveats.md) for TN's coverage
+  limits.
+- **`ProjectRecord.documents`** — a map of official source-document URLs (label → URL) a state
+  publishes when it exposes no structured detail. Populated for TN's offline projects (scanned
+  approval / carpet-area PDFs); omitted otherwise. Never fabricated.
+- **State-aware demo web app** (`web/`) — a KA/TN state selector; every query targets exactly one
+  state (no cross-state search), and offline projects surface their official PDF documents.
 
 ### Changed
 
+- **Adapter crawl model is now `sources: CrawlSource[]`.** Each source self-describes its own
+  `fetch`, `parse`, and `sanityFloor`, and the engine iterates them opaquely. This replaces the
+  `datasets` + `fetchList` + `parseList` + `sanityFloors.perDataset` quartet and decouples a
+  crawl sub-source from the record-level `Dataset` label — so a state can carve its crawl into
+  arbitrary pools (e.g. TN's online + offline-building + offline-layout) without the shared
+  `Dataset` union growing per state.
 - `Dataset` gains a neutral `'registered'` value for states without an ongoing/completed split
-  (Tamil Nadu). The adapter detail interface is now a single encapsulated
+  (Tamil Nadu). The adapter detail interface is a single encapsulated
   `fetchDetail(record) -> { detail, promoter }`. `IndexRecord` gains an opaque `detailRefs` bag
-  for portals that key detail pages by a per-row id.
+  for portals that key detail pages (or documents) by a per-row id.
 
 
 ## [0.1.0] - 2026-07-19

@@ -19,19 +19,17 @@ import type { StateAdapter } from './types.js';
 export const karnatakaAdapter: StateAdapter = {
   code: 'KA',
   name: 'Karnataka',
-  datasets: ['ongoing', 'completed'],
-  hasInvestigationList: true,
-  // Formerly the MIN_PLAUSIBLE_* constants inline in syncIndex.ts — calibrated
-  // to Karnataka's real order of magnitude (ongoing ~9.7k, completed ~3.4k,
-  // investigation ~1,050).
-  sanityFloors: { perDataset: { ongoing: 3_000, completed: 1_000 }, investigation: 500 },
+  // Two crawl sources; each parser stamps its records' `dataset` label
+  // ('ongoing' / 'completed'). Floors are the former MIN_PLAUSIBLE_* constants,
+  // calibrated to Karnataka's real order of magnitude (ongoing ~9.7k,
+  // completed ~3.4k) — parser-break protection, not a tuning knob.
+  sources: [
+    { id: 'ongoing', sanityFloor: 3_000, fetch: (log) => fetchOngoingHtml(log), parse: (raw) => parseOngoing(raw) },
+    { id: 'completed', sanityFloor: 1_000, fetch: (log) => fetchCompletedHtml(log), parse: (raw) => parseCompleted(raw) },
+  ],
 
-  fetchList(dataset, log) {
-    return dataset === 'ongoing' ? fetchOngoingHtml(log) : fetchCompletedHtml(log);
-  },
-  parseList(raw, dataset) {
-    return dataset === 'ongoing' ? parseOngoing(raw) : parseCompleted(raw);
-  },
+  hasInvestigationList: true,
+  investigationFloor: 500, // investigation list ~1,050
 
   fetchInvestigationList(log) {
     return fetchUnregisteredProjectsHtml(log);

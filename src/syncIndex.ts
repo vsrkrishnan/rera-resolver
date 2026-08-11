@@ -1,4 +1,4 @@
-import type { Dataset, IndexRecord, SyncResult, OperationCostRecord, StateCode } from './types.js';
+import type { IndexRecord, SyncResult, OperationCostRecord, StateCode } from './types.js';
 import type { FetchLog } from './registryFetch.js';
 import { dedupeRecords } from './parse.js';
 import { readSnapshot, readInvestigationSnapshot, writeSnapshot, resolveDbPathForState } from './storage.js';
@@ -29,10 +29,6 @@ export async function syncIndex(options: SyncOptions = {}): Promise<SyncResult> 
   const previous = readSnapshot(dbPath);
   const previousInvestigations = readInvestigationSnapshot(dbPath);
 
-  // Counts are reported per the (Karnataka-shaped) SyncResult contract:
-  // ongoingCount/completedCount. A state whose datasets aren't literally
-  // 'ongoing'/'completed' simply reports 0 for the absent ones.
-  const countByDataset: Partial<Record<Dataset, number>> = {};
   const keepPrior = (): SyncResult => ({
     fetchedAt,
     ongoingCount: previous?.ongoingCount ?? 0,
@@ -43,38 +39,47 @@ export async function syncIndex(options: SyncOptions = {}): Promise<SyncResult> 
     ok: false,
   });
 
-  // Fetch every dataset (and the optional investigation list) in parallel.
-  const [rawByDataset, investigationHtml] = await Promise.all([
-    Promise.all(adapter.datasets.map((ds) => adapter.fetchList(ds, fetchLog))),
+  // Fetch every source (and the optional investigation list) in parallel. The
+  // engine never learns what a source is — it just fetches, parses, and
+  // floor-checks each one the same way (see CrawlSource).
+  const [rawBySource, investigationHtml] = await Promise.all([
+    Promise.all(adapter.sources.map((s) => s.fetch(fetchLog))),
     adapter.hasInvestigationList && adapter.fetchInvestigationList
       ? adapter.fetchInvestigationList(fetchLog)
       : Promise.resolve(null),
   ]);
 
-  // Every declared dataset is mandatory — any fetch failure fails the whole
-  // sync and keeps the prior snapshot (matches Karnataka's original behavior
-  // where a missing ongoing OR completed dump aborted the sync).
-  const parsedByDataset: IndexRecord[][] = [];
-  for (let i = 0; i < adapter.datasets.length; i++) {
-    const ds = adapter.datasets[i];
-    const raw = rawByDataset[i];
+  // Every source is mandatory — any fetch failure fails the whole sync and
+  // keeps the prior snapshot (matches Karnataka's original behavior where a
+  // missing ongoing OR completed dump aborted the sync).
+  const parsedBySource: IndexRecord[][] = [];
+  const countBySource: Record<string, number> = {};
+  for (let i = 0; i < adapter.sources.length; i++) {
+    const source = adapter.sources[i];
+    const raw = rawBySource[i];
     if (!raw) {
-      log(`[syncIndex] FAILED: fetch failure for dataset "${ds}" (${state}). Keeping prior snapshot.`);
+      log(`[syncIndex] FAILED: fetch failure for source "${source.id}" (${state}). Keeping prior snapshot.`);
       emitCost();
       return keepPrior();
     }
-    const parsed = adapter.parseList(raw, ds);
-    const floor = adapter.sanityFloors.perDataset[ds];
-    if (floor !== undefined && parsed.length < floor) {
+    const parsed = source.parse(raw);
+    if (parsed.length < source.sanityFloor) {
       log(
-        `[syncIndex] FAILED: parsed count for "${ds}" below sanity floor (${parsed.length} < ${floor}) — likely a portal HTML structure change broke the parser. Keeping prior snapshot, NOT swapping.`,
+        `[syncIndex] FAILED: parsed count for "${source.id}" below sanity floor (${parsed.length} < ${source.sanityFloor}) — likely a portal HTML structure change broke the parser. Keeping prior snapshot, NOT swapping.`,
       );
       emitCost();
       return keepPrior();
     }
-    countByDataset[ds] = parsed.length;
-    parsedByDataset.push(parsed);
+    countBySource[source.id] = parsed.length;
+    parsedBySource.push(parsed);
   }
+
+  // Counts are reported per the (Karnataka-shaped) SyncResult contract:
+  // ongoingCount/completedCount, derived from the records' own `dataset` labels
+  // (a state with no ongoing/completed split reports 0 for the absent ones).
+  const allParsed = parsedBySource.flat();
+  const ongoingCount = allParsed.filter((r) => r.dataset === 'ongoing').length;
+  const completedCount = allParsed.filter((r) => r.dataset === 'completed').length;
 
   // Investigation list is a secondary/supplementary dataset — a hiccup on this
   // specific endpoint (or a parser break) does NOT fail the whole sync, it
@@ -83,7 +88,7 @@ export async function syncIndex(options: SyncOptions = {}): Promise<SyncResult> 
   let investigationRecords =
     investigationHtml && adapter.parseInvestigationList ? adapter.parseInvestigationList(investigationHtml) : [];
   let investigationFetchedAt = fetchedAt;
-  const investigationFloor = adapter.sanityFloors.investigation ?? 0;
+  const investigationFloor = adapter.investigationFloor ?? 0;
   if (adapter.hasInvestigationList && (!investigationHtml || investigationRecords.length < investigationFloor)) {
     log(
       `[syncIndex] WARN: investigation list fetch/parse looked wrong (html=${investigationHtml ? 'ok' : 'null'}, parsed=${investigationRecords.length}) — keeping prior investigation snapshot.`,
@@ -92,7 +97,7 @@ export async function syncIndex(options: SyncOptions = {}): Promise<SyncResult> 
     investigationFetchedAt = previousInvestigations?.fetchedAt ?? fetchedAt;
   }
 
-  const records = dedupeRecords(parsedByDataset.flat());
+  const records = dedupeRecords(allParsed);
 
   const previousRegNumbers = new Set((previous?.records ?? []).map((r) => r.regNumber));
   const currentRegNumbers = new Set(records.map((r) => r.regNumber));
@@ -105,8 +110,8 @@ export async function syncIndex(options: SyncOptions = {}): Promise<SyncResult> 
     {
       fetchedAt,
       state,
-      ongoingCount: countByDataset.ongoing ?? 0,
-      completedCount: countByDataset.completed ?? 0,
+      ongoingCount,
+      completedCount,
       records,
     },
     {
@@ -117,16 +122,16 @@ export async function syncIndex(options: SyncOptions = {}): Promise<SyncResult> 
   );
 
   log(
-    `[syncIndex] OK (${state}): ${adapter.datasets
-      .map((ds) => `${ds}=${countByDataset[ds] ?? 0}`)
+    `[syncIndex] OK (${state}): ${adapter.sources
+      .map((s) => `${s.id}=${countBySource[s.id] ?? 0}`)
       .join(' ')} deduped_total=${records.length} added=${added} removed=${removed} investigations=${investigationRecords.length} httpCalls=${fetchLog.httpCalls}`,
   );
   emitCost();
 
   return {
     fetchedAt,
-    ongoingCount: countByDataset.ongoing ?? 0,
-    completedCount: countByDataset.completed ?? 0,
+    ongoingCount,
+    completedCount,
     investigationCount: investigationRecords.length,
     added,
     removed,

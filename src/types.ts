@@ -144,6 +144,12 @@ export interface ProjectRecord {
   ifscCode?: string;
   numberOfPlotsOrUnits?: string;
   promoter?: PromoterProfile;
+  // Official source documents (label -> URL) the state publishes for this
+  // project instead of, or in addition to, structured detail — e.g. Tamil
+  // Nadu's offline (paper-filed) projects expose only scanned PDFs (approval,
+  // carpet-area). Populated from the index record's document links; never
+  // fabricated. Present mainly when fetchState is 'detail_unavailable'.
+  documents?: Record<string, string>;
   fetchState: FetchState;
   fetchedAt: string; // ISO-8601
 }

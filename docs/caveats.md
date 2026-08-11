@@ -47,16 +47,24 @@ Pass `state` in the options (or `--state` on the CLI) to target one; it defaults
 
 - **Karnataka (`KA`)** — the reference. Ongoing + completed datasets, live project + promoter
   detail, and the "Projects Under Investigation" list (stale, as above).
-- **Tamil Nadu (`TN`)** — covers the **online** registered-project tables only (Building +
-  Layout, ~3,400 projects). Honest limits, by design:
-  - The 2017–2025 **offline archives are not indexed** yet (the portal exposes no detail page
-    for them, only PDFs), so resolving a TN project registered before 2026 may not find it.
-  - TN has **no ongoing/completed split** — every TN record's `dataset` is `'registered'`, which
-    carries no completion claim.
-  - Live detail exposes **fewer fields than Karnataka**: project type, completion date, address,
-    GPS, and plan-approval details, plus a promoter profile (type, registration no., PAN, address)
-    — but **no project cost, bank details, complaint counts, or status**, because the TN portal
-    doesn't publish them. Absent fields are `undefined`, never faked.
+- **Tamil Nadu (`TN`)** — covers both the **online** e-registered tables (Building + Layout,
+  ~3,400 projects, reg `TNRERA/…`) **and the offline paper-filed archives** (per-year, 2017–2025,
+  ~14,000 projects, reg `TN/…`), for ~17,600 projects total. Honest limits, by design:
+  - **Online vs offline is a filing-mode distinction, not a project kind.** Every TN record's
+    `dataset` is `'registered'` (TN has no ongoing/completed split, which carries no completion
+    claim). The online/offline difference shows only in the reg-number prefix and in what detail
+    is available.
+  - **Online** projects have full live detail: project type, completion date, address, GPS, and
+    plan-approval details, plus a promoter profile (type, registration no., PAN, address) — but
+    **no project cost, bank details, complaint counts, or status**, because the TN portal doesn't
+    publish them. Absent fields are `undefined`, never faked.
+  - **Offline** projects are fully **resolvable** (name, promoter, reg number all come from the
+    list table), but the portal exposes **no structured detail** for them — only scanned PDF
+    documents. So `fetch()` returns `fetchState: 'detail_unavailable'` with a `documents` map of
+    the official PDF URLs (approval, carpet-area) rather than fabricated fields. Older filings
+    (esp. 2017–18) often recorded **no distinct project name**, only a construction description;
+    the resolver falls back to that description so the row is still searchable, never inventing a
+    name.
   - The promoter **name comes combined with its address**, and **PAN is published masked**
     (e.g. `XXXXXX230D`); both are stored verbatim as the portal presents them.
   - TN has **no `checkUnderInvestigation()` equivalent** — it has no Karnataka-style enforcement
