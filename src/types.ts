@@ -111,6 +111,13 @@ export interface PromoterProfile {
   designation?: string;
   din?: string;
   numberOfDirectors?: string;
+  // Contact + identity fields Tamil Nadu's promoter page exposes (KA's doesn't).
+  email?: string;
+  mobile?: string;
+  website?: string;
+  occupation?: string; // individual promoters
+  fathersName?: string; // individual promoters
+  directorNames?: string[]; // partners/directors listed on the promoter page
 }
 
 export interface ProjectRecord {
@@ -129,6 +136,8 @@ export interface ProjectRecord {
   complaintsOnProject?: number;
   projectType?: string;
   projectDescription?: string;
+  usage?: string;
+  siteAreaSqm?: string;
   extentDevelopedPct?: string;
   projectAddress?: string;
   pinCode?: string;

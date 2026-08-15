@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseInvestigationList } from '../parse.js';
-import { writeSnapshot } from '../storage.js';
-import { checkUnderInvestigation } from '../checkUnderInvestigation.js';
-import type { InvestigationRecord } from '../types.js';
+import { parseInvestigationList } from '../../parse.js';
+import { writeSnapshot } from '../../storage.js';
+import { checkUnderInvestigation } from '../../checkUnderInvestigation.js';
+import type { InvestigationRecord } from '../../types.js';
 
 // Fixture reproduces the real unregProjectList markup verified live
 // 2026-07-18: <thead> is well-formed, but <tbody> rows are opened with <tr>

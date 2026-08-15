@@ -285,17 +285,22 @@ async function loadProject(regNumber) {
 
 const DOCUMENT_LABELS = { approval: 'Approval details', carpet: 'Carpet-area statement', formA: 'Form A', status: 'Current status' };
 
+// Official source-document (PDF) links, shown whenever present — e.g. Tamil
+// Nadu's offline projects carry scanned approval/carpet PDFs.
+function documentsHtml(p) {
+  const docs = p.documents ? Object.entries(p.documents) : [];
+  if (docs.length === 0) return '';
+  return `<h3>Official documents</h3>
+    <ul class="documents">
+      ${docs.map(([k, url]) => `<li><a href="${esc(url)}" target="_blank" rel="noopener">${esc(DOCUMENT_LABELS[k] ?? k)} (PDF) →</a></li>`).join('')}
+    </ul>`;
+}
+
 function renderProject(p) {
   if (p.fetchState === 'detail_unavailable') {
-    const docs = p.documents ? Object.entries(p.documents) : [];
-    // When the state publishes official documents (e.g. Tamil Nadu's offline
-    // paper-filed projects expose only scanned PDFs, not structured data), this
-    // isn't a portal hiccup — it's the ground truth. Show the real documents.
-    const body = docs.length > 0
-      ? `<p class="notice">This is an older, paper-filed registration. ${esc(stateNames[p.state] ?? p.state ?? 'The state')}'s portal publishes its details only as scanned documents, not structured data — so there's no live dossier to show, but here are the official records:</p>
-         <ul class="documents">
-           ${docs.map(([k, url]) => `<li><a href="${esc(url)}" target="_blank" rel="noopener">${esc(DOCUMENT_LABELS[k] ?? k)} (PDF) →</a></li>`).join('')}
-         </ul>`
+    const docs = documentsHtml(p);
+    const body = docs
+      ? `<p class="notice">This is an older, paper-filed registration — ${esc(stateNames[p.state] ?? p.state ?? 'the state')}'s portal exposes it only as scanned documents. Here are the official records:</p>${docs}`
       : `<p class="notice">The live government portal didn't respond just now — it can be slow, temporarily down, or unreachable from this environment. The local registry index still confirms this project exists. Try again in a moment.</p>`;
     dossierSection.innerHTML = `
       <div class="dossier-card">
@@ -311,6 +316,8 @@ function renderProject(p) {
     ['Start date', p.projectStartDate],
     ['End date', p.projectEndDate],
     ['Project type', p.projectType],
+    ['Usage', p.usage],
+    ['Site extent (sq.m)', p.siteAreaSqm],
     ['Extent developed', p.extentDevelopedPct],
     ['Address', p.projectAddress],
     ['Plots / units', p.numberOfPlotsOrUnits],
@@ -348,6 +355,7 @@ function renderProject(p) {
         ${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}
       </table>
       ${gps}
+      ${documentsHtml(p)}
       <h3>Promoter</h3>
       <p class="promoter-name-lg">${esc(p.promoterName)} <button class="view-promoter" data-promoter="${esc(p.promoterName)}">View full promoter profile</button></p>
       ${promoter}
@@ -362,8 +370,13 @@ function renderPromoterProfile(profile) {
   const rows = [
     ['Type of firm', profile.typeOfFirm],
     ['CIN / registration no.', profile.registrationNumber],
-    ['PAN', profile.pan],
     ['GSTIN', profile.gstin],
+    ['PAN', profile.pan],
+    ['Email', profile.email],
+    ['Mobile', profile.mobile],
+    ['Website', profile.website],
+    ['Occupation', profile.occupation],
+    ["Father's name", profile.fathersName],
     ['Address', profile.address],
     ['District', profile.district],
     ['Taluk', profile.taluk],
@@ -371,7 +384,7 @@ function renderPromoterProfile(profile) {
     ['CEO / MD', profile.ceoOrMd],
     ['Authorized signatory', profile.authorizedSignatory],
     ['DIN', profile.din],
-    ['Number of directors', profile.numberOfDirectors],
+    ['Partners / directors', Array.isArray(profile.directorNames) ? profile.directorNames.join(', ') : profile.numberOfDirectors],
   ].filter(([, v]) => v);
   if (rows.length === 0) return '';
   return `<table class="detail-table">${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table>`;

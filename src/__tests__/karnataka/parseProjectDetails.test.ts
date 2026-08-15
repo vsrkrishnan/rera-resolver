@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseProjectDetails, parsePromoterProfile } from '../parseProjectDetails.js';
+import { parseProjectDetails, parsePromoterProfile } from '../../parseProjectDetails.js';
 
 // Fixture reproduces the label/colon/value text-node sequence confirmed live
 // against 3 real projectDetails responses during Phase 1.0 (exact tag names

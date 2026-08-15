@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseOngoing, parseCompleted, dedupeRecords } from '../parse.js';
+import { parseOngoing, parseCompleted, dedupeRecords } from '../../parse.js';
 
 // Fixture mirrors the real viewAllProjects markup verified live during
 // Phase 1.0 (including the line-break between the array name and `.push(`

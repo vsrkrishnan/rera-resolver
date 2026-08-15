@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTokenStats, tokenWeight } from '../tokenStats.js';
-import type { IndexRecord } from '../types.js';
+import { buildTokenStats, tokenWeight } from '../../tokenStats.js';
+import type { IndexRecord } from '../../types.js';
 
 function record(registeredName: string): IndexRecord {
   return { regNumber: registeredName, registeredName, promoterName: 'X', dataset: 'ongoing' };

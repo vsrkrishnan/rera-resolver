@@ -27,6 +27,7 @@ import {
 import { parseTnList } from './tamilnadu/parseList.js';
 import { parseTnOfflineList } from './tamilnadu/parseOfflineList.js';
 import { parseTnProjectDetail, parseTnPromoter } from './tamilnadu/parseDetail.js';
+import type { ParsedProjectDetails } from '../parseProjectDetails.js';
 import type { StateAdapter } from './types.js';
 
 // TN's online pool comes from two online tables; fetch both and hand them to
@@ -57,11 +58,24 @@ export const tamilNaduAdapter: StateAdapter = {
 
   // Detail routing keys off the reg-number prefix (the only reliable
   // online/offline signal on a record): online regs are `TNRERA/…`, offline are
-  // `TN/…`. Offline rows have no structured detail page — only scanned PDFs,
-  // already stored in detailRefs — so we honestly return null (detail_unavailable)
-  // rather than fabricate fields.
+  // `TN/…`.
   async fetchDetail(record, log) {
-    if (!record.regNumber.startsWith('TNRERA/')) return null;
+    // Offline projects have no structured detail page — but their list row
+    // carried real data (GPS, completion date, current status), harvested into
+    // detailRefs at parse time. Assemble it here, no network. The scanned PDFs
+    // (approval/carpet) remain in detailRefs and surface as `documents` via
+    // fetchProject. Nothing is fabricated — a field absent from the row is
+    // simply omitted, and if the row carried nothing we return null.
+    if (!record.regNumber.startsWith('TNRERA/')) {
+      const refs = record.detailRefs ?? {};
+      const detail: ParsedProjectDetails = {
+        latitude: refs.lat,
+        longitude: refs.long,
+        projectStatus: refs.status,
+        projectEndDate: refs.endDate,
+      };
+      return Object.values(detail).some((v) => v !== undefined) ? { detail } : null;
+    }
 
     // Online: project detail (public-view2) and promoter detail (public-view1)
     // are two separately-keyed pages; their URLs were harvested into detailRefs.

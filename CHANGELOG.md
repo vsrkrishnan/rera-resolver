@@ -19,6 +19,13 @@ All notable changes to this project will be documented in this file. Format is b
 - **`ProjectRecord.documents`** — a map of official source-document URLs (label → URL) a state
   publishes when it exposes no structured detail. Populated for TN's offline projects (scanned
   approval / carpet-area PDFs); omitted otherwise. Never fabricated.
+- **Much richer Tamil Nadu detail parsing.** The online "Form A" parse now returns stage of
+  construction (`projectStatus`), dwelling-unit count, site extent, usage, and the RERA-designated
+  bank name/branch (new `ProjectRecord.usage` / `siteAreaSqm`); the promoter parse now returns
+  contact fields (`email`/`mobile`/`website`), CIN **or** GSTIN (auto-detected), the chairman/CEO
+  or the list of partners/directors (`directorNames`), and individual-promoter fields
+  (`occupation`/`fathersName`). Offline projects now also carry table-borne **GPS** (DMS→decimal),
+  completion date, and status — so `fetch()` returns `complete` (not `detail_unavailable`) for them.
 - **State-aware demo web app** (`web/`) — a KA/TN state selector; every query targets exactly one
   state (no cross-state search), and offline projects surface their official PDF documents.
 

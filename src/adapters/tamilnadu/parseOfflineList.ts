@@ -56,6 +56,30 @@ function stripTags(html: string): string {
     .trim();
 }
 
+// Offline rows carry GPS as manually-typed DMS in the project cell
+// ("Location of Site: Latitude-10º59'54.8"N; Longitude-79º27'44.0"E") — symbols
+// (º/°/⁰, '/’/′, "/”/″) and precision (deg-min-sec vs deg-min vs decimal) vary
+// row to row. Convert to decimal tolerantly; anything we can't confidently read
+// stays undefined (never guess a coordinate).
+const DMS_CHARS = "0-9.\\sº°⁰'’′\"”″";
+
+function dmsToDecimal(raw: string): string | undefined {
+  const hemi = /[NSEW]/i.exec(raw)?.[0]?.toUpperCase();
+  const nums = (raw.match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
+  if (!hemi || nums.length === 0) return undefined;
+  const [deg = 0, min = 0, sec = 0] = nums;
+  let dec = deg + min / 60 + sec / 3600;
+  if (hemi === 'S' || hemi === 'W') dec = -dec;
+  if (!Number.isFinite(dec) || Math.abs(dec) > 180) return undefined;
+  return dec.toFixed(6);
+}
+
+function parseOfflineGps(text: string): { lat?: string; long?: string } {
+  const lat = new RegExp(`Lat[a-z]*\\s*[-:]?\\s*([${DMS_CHARS}]*[NS])`, 'i').exec(text);
+  const long = new RegExp(`Long[a-z]*\\s*[-:]?\\s*([${DMS_CHARS}]*[EW])`, 'i').exec(text);
+  return { lat: lat ? dmsToDecimal(lat[1]) : undefined, long: long ? dmsToDecimal(long[1]) : undefined };
+}
+
 // Longest a description-fallback name is allowed to be: enough to carry the
 // distinguishing tokens, short enough not to be an unwieldy paragraph.
 const NAME_MAX = 200;
@@ -119,6 +143,20 @@ function parseTbody(tbody: string, records: IndexRecord[]): void {
         if (!detailRefs[kind] && re.test(url)) detailRefs[kind] = url;
       }
     }
+
+    // Table-borne detail (no OCR): GPS, completion date, current status.
+    // Stored as data values in detailRefs alongside the PDF URLs — the adapter
+    // reads them back to build an offline project's detail, and the fetchProject
+    // documents filter only surfaces the `.pdf` entries. The "Location of Site"
+    // GPS lands in different columns year to year, so scan the whole row for it;
+    // date/status are positional relative to the reg cell.
+    const { lat, long } = parseOfflineGps(stripped.join('  '));
+    if (lat) detailRefs.lat = lat;
+    if (long) detailRefs.long = long;
+    const endDate = stripped[regIdx + 4] ?? '';
+    if (/\d{1,2}[./-]\d{1,2}[./-]\d{4}/.test(endDate)) detailRefs.endDate = endDate;
+    const status = regIdx + 6 < stripped.length ? stripped[regIdx + 6] : (stripped[stripped.length - 1] ?? '');
+    if (status && status !== '-' && !REG_PATTERN.test(status)) detailRefs.status = status;
 
     records.push({
       regNumber,

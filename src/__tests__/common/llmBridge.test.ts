@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildShortlist, runLlmSemanticBridge } from '../llmBridge.js';
-import { MAX_LLM_SHORTLIST } from '../config.js';
-import type { Candidate, IndexRecord, LlmClient, LlmMatchRequest } from '../types.js';
+import { buildShortlist, runLlmSemanticBridge } from '../../llmBridge.js';
+import { MAX_LLM_SHORTLIST } from '../../config.js';
+import type { Candidate, IndexRecord, LlmClient, LlmMatchRequest } from '../../types.js';
 
 function record(overrides: Partial<IndexRecord>): IndexRecord {
   return {

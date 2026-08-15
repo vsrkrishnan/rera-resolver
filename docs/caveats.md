@@ -54,18 +54,23 @@ Pass `state` in the options (or `--state` on the CLI) to target one; it defaults
     `dataset` is `'registered'` (TN has no ongoing/completed split, which carries no completion
     claim). The online/offline difference shows only in the reg-number prefix and in what detail
     is available.
-  - **Online** projects have full live detail: project type, completion date, address, GPS, and
-    plan-approval details, plus a promoter profile (type, registration no., PAN, address) — but
-    **no project cost, bank details, complaint counts, or status**, because the TN portal doesn't
-    publish them. Absent fields are `undefined`, never faked.
-  - **Offline** projects are fully **resolvable** (name, promoter, reg number all come from the
-    list table), but the portal exposes **no structured detail** for them — only scanned PDF
-    documents. So `fetch()` returns `fetchState: 'detail_unavailable'` with a `documents` map of
-    the official PDF URLs (approval, carpet-area) rather than fabricated fields. Older filings
-    (esp. 2017–18) often recorded **no distinct project name**, only a construction description;
-    the resolver falls back to that description so the row is still searchable, never inventing a
-    name.
-  - The promoter **name comes combined with its address**, and **PAN is published masked**
+  - **Online** projects carry a rich "Form A" detail page — actually *more* than Karnataka in
+    places. `fetch()` returns project type, usage, site extent, dwelling-unit count, **stage of
+    construction (status)**, completion date, GPS, plan-approval details, and the promoter's
+    **RERA-designated bank name/branch**, plus a promoter profile with contact details (email,
+    mobile, website), CIN **or** GSTIN, masked PAN, and the chairman/CEO or the list of
+    partners/directors. Fields the portal doesn't publish for a given project (it renders them as
+    `-`) are `undefined`, never faked. (Not yet lifted: the project's structural-engineer/contractor
+    sub-blocks, the promoter's financial-indicator block — usually blank — and its previous-project
+    portfolio; and the pages' "View Document" PDF links.)
+  - **Offline** projects have **no structured detail page**, but their list row itself carries real
+    data we surface without OCR: **completion date, current status, and GPS** (manually typed in
+    DMS, e.g. `Latitude-10º59'54.8"N`, converted to decimal — present for ~40% of rows). `fetch()`
+    returns these plus a `documents` map of the official scanned PDFs (approval, carpet-area). The
+    *contents* of those scanned PDFs remain the only OCR-gated tier. Older filings (esp. 2017–18)
+    often recorded **no distinct project name**, only a construction description; the resolver falls
+    back to that description so the row stays searchable, never inventing a name.
+  - The promoter **name comes combined with its address** in the list, and **PAN is published masked**
     (e.g. `XXXXXX230D`); both are stored verbatim as the portal presents them.
   - TN has **no `checkUnderInvestigation()` equivalent** — it has no Karnataka-style enforcement
     list, so that call returns empty for `state: 'TN'`.

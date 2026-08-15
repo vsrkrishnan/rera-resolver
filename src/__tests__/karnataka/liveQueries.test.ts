@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { writeSnapshot } from '../storage.js';
-import { resolve } from '../resolve.js';
-import { MATCH_THRESHOLDS } from '../config.js';
-import type { IndexRecord } from '../types.js';
+import { writeSnapshot } from '../../storage.js';
+import { resolve } from '../../resolve.js';
+import { MATCH_THRESHOLDS } from '../../config.js';
+import type { IndexRecord } from '../../types.js';
 
 // Regression fixtures for real queries verified live against the actual
 // rera.karnataka.gov.in index during development (2026-07-17/18). These lock

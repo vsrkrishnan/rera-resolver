@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTnOfflineList } from '../adapters/tamilnadu/parseOfflineList.js';
+import { parseTnOfflineList } from '../../adapters/tamilnadu/parseOfflineList.js';
 
 // Fixtures mirror the real /building/offline/<year> and /layout/offline/<year>
 // tables verified against all 19 year-pages, 2026-08-11. Structure (8 cells):
@@ -22,6 +22,7 @@ const OFFLINE_FIXTURE = `
     <!--<a href="https://rera.tn.gov.in/cms/Other_Details/Building/Project_Details/2023/-2023.pdf" target="_blank">Project Details</a>-->
     <a href="https://rera.tn.gov.in/cms/Other_Details/Building/Approval_Details/2023/8-2023.pdf" target="_blank">Approval Details</a>
     <a href="https://rera.tn.gov.in/cms/Other_Details/Building/Carpet_Area/2023/8-2023.pdf" target="_blank">Carpet Area</a>
+    Location of Site: Latitude-13º09’19.0”N; Longitude-80º24’18.9”E;
   </td>
   <td>Progress of Work as on June 2025</td>
 </tr>
@@ -68,6 +69,15 @@ test('parseTnOfflineList harvests only LIVE scanned-PDF links and never the comm
   assert.equal(purva.detailRefs?.project, undefined);
 });
 
+test('parseTnOfflineList harvests table-borne detail (completion date, current status, DMS GPS→decimal) with no OCR', () => {
+  const purva = parseTnOfflineList(OFFLINE_FIXTURE)[0];
+  assert.equal(purva.detailRefs?.endDate, '31.12.2027'); // Completion Date column
+  assert.equal(purva.detailRefs?.status, 'Progress of Work as on June 2025'); // Current Status column
+  // "Latitude-13º09'19.0"N" -> 13 + 9/60 + 19/3600 = 13.155278; longitude likewise.
+  assert.equal(purva.detailRefs?.lat, '13.155278');
+  assert.equal(purva.detailRefs?.long, '80.405250');
+});
+
 test('parseTnOfflineList anchors on the reg cell, tolerating malformed rows with shifted/extra <td>s (building-2018)', () => {
   // A leading spacer cell plus extra empties before the data — the reg number is
   // not at a fixed index, but is still identifiable.
@@ -87,4 +97,38 @@ test('parseTnOfflineList anchors on the reg cell, tolerating malformed rows with
 test('parseTnOfflineList skips spacer/header rows with no TN/…/<year> reg number', () => {
   const noReg = `<table><tbody><tr><td>S.No</td><td>Project Registration No.</td><td>Promoter</td></tr></tbody></table>`;
   assert.equal(parseTnOfflineList(noReg).length, 0);
+});
+
+// GPS is hand-typed, so symbols (º/°, '/’) and precision (deg-min-sec vs
+// deg-min vs decimal) vary row to row — the DMS→decimal conversion tolerates it.
+function offlineRowWithGps(gps: string): string {
+  return `<table><tbody><tr>
+    <td>1</td><td>TN/29/Building/0100/2022 dated 01/01/2022</td>
+    <td>Some Promoter</td><td>Project Name: "GPS Test"</td>
+    <td>appr</td><td>2030</td><td>Location of Site: ${gps}</td><td>Ongoing</td>
+  </tr></tbody></table>`;
+}
+
+test('parseTnOfflineList converts deg-min-sec DMS GPS to decimal', () => {
+  const r = parseTnOfflineList(offlineRowWithGps(`Latitude-13º09’19.0”N; Longitude-80º24’18.9”E;`))[0];
+  assert.equal(r.detailRefs?.lat, '13.155278');
+  assert.equal(r.detailRefs?.long, '80.405250');
+});
+
+test('parseTnOfflineList converts a minutes-only DMS variant (no seconds, plain ° symbol)', () => {
+  const r = parseTnOfflineList(offlineRowWithGps(`Latitude-13°09'N; Longitude-80°24'E;`))[0];
+  assert.equal(r.detailRefs?.lat, '13.150000'); // 13 + 9/60
+  assert.equal(r.detailRefs?.long, '80.400000'); // 80 + 24/60
+});
+
+test('parseTnOfflineList reads an already-decimal coordinate too', () => {
+  const r = parseTnOfflineList(offlineRowWithGps(`Latitude-13.163286N; Longitude-80.301217E;`))[0];
+  assert.equal(r.detailRefs?.lat, '13.163286');
+  assert.equal(r.detailRefs?.long, '80.301217');
+});
+
+test('parseTnOfflineList omits GPS entirely for a row that has none (never guesses)', () => {
+  const r = parseTnOfflineList(offlineRowWithGps('address only, no coordinates'))[0];
+  assert.equal(r.detailRefs?.lat, undefined);
+  assert.equal(r.detailRefs?.long, undefined);
 });

@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { writeSnapshot, readSnapshot, resolveDbPathForState } from '../storage.js';
-import { getAdapter, SUPPORTED_STATES } from '../adapters/registry.js';
-import type { IndexRecord } from '../types.js';
+import { writeSnapshot, readSnapshot, resolveDbPathForState } from '../../storage.js';
+import { getAdapter, SUPPORTED_STATES } from '../../adapters/registry.js';
+import type { IndexRecord } from '../../types.js';
 
 const RECORD: IndexRecord = {
   regNumber: 'PRM/KA/RERA/0001',
