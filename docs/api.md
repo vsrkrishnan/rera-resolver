@@ -70,4 +70,16 @@ Full types (`Candidate`, `ResolveResult`, `ProjectRecord`, `PromoterProfile`, `P
 are also exported.
 
 Every `dbPath` defaults to a per-user cache directory; override it (or the postinstall/CLI
-default) with the `RERA_RESOLVER_DB_PATH` env var.
+default) with the `RERA_RESOLVER_DB_PATH` env var (pins a single file — single-state mode), or set
+`RERA_RESOLVER_DB_DIR` to keep the per-state files (`index-<state>.db`) under a directory of your
+choice.
+
+### Multi-state
+
+Every function's options object also accepts `state?: StateCode` (`'KA'` | `'TN'` | `'MH'`;
+defaults to `'KA'`), selecting which state's registry — and which per-state index — to use.
+`Candidate` and `ProjectRecord` echo the `state` they came from. `Dataset` is
+`'ongoing' | 'completed' | 'registered'` — `'registered'` is used by states (e.g. Tamil Nadu) that
+don't split ongoing vs completed. `SUPPORTED_STATES` and `getAdapter(state)` are exported for
+introspection. See [guide.md](guide.md#choosing-a-state) and
+[caveats.md](caveats.md#state-specific-coverage).

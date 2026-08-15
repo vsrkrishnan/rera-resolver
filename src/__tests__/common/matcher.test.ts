@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreRecord } from '../matcher.js';
-import { MATCH_THRESHOLDS } from '../config.js';
-import type { IndexRecord } from '../types.js';
+import { scoreRecord } from '../../matcher.js';
+import { MATCH_THRESHOLDS } from '../../config.js';
+import type { IndexRecord } from '../../types.js';
 
 function record(overrides: Partial<IndexRecord>): IndexRecord {
   return {

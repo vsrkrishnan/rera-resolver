@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { writeSnapshot } from '../storage.js';
-import { resolve, projectsByPromoter } from '../resolve.js';
-import type { IndexRecord, LlmClient, OperationCostRecord } from '../types.js';
+import { writeSnapshot } from '../../storage.js';
+import { resolve, projectsByPromoter } from '../../resolve.js';
+import type { IndexRecord, LlmClient, OperationCostRecord } from '../../types.js';
 
 function withTempDb(fn: (dbPath: string) => void | Promise<void>) {
   return async () => {

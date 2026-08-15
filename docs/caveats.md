@@ -5,12 +5,14 @@
 For normal use you need just two things:
 
 - **Node ≥ 20** — uses the global `fetch` and ESM.
-- **Outbound network access to `rera.karnataka.gov.in`.** This is the only external host the
-  library ever contacts (no API key, no other host, and **never a web search** to decide a
-  match). It's needed to build/refresh the local index (on install, via `npx rera-resolver sync`,
-  or whenever the cache goes stale) and by `fetch()` for live project detail. If that host isn't
-  reachable — offline install, locked-down CI network — bootstrap simply fails gracefully; run
-  `npx rera-resolver sync` later from an environment that can reach it.
+- **Outbound network access to the RERA portal(s) for the state(s) you use.** The library
+  contacts one government host per supported state — `rera.karnataka.gov.in` for Karnataka,
+  `rera.tn.gov.in` for Tamil Nadu — and nothing else (no API key, no other host, and **never a
+  web search** to decide a match). Each host is needed to build/refresh that state's local index
+  (on install, via `npx rera-resolver sync [--state <code>]`, or whenever the cache goes stale)
+  and by `fetch()` for live project detail. If a host isn't reachable — offline install,
+  locked-down CI network, or a cloud region the portal is slow to answer from — bootstrap simply
+  fails gracefully; run `npx rera-resolver sync` later from an environment that can reach it.
 
 Two more things you almost certainly already have: **local disk write access** to your user cache
 directory (where the SQLite index lives), and — only if you opt into the Tier 3 semantic bridge
@@ -37,3 +39,38 @@ toolchain** to compile it from source.
   reason.
 - **`resolve()` never auto-confirms.** `status: 'high_confidence'` is advisory only — you decide
   what to do with the ranked candidate list, especially `'ambiguous'` results.
+
+### State-specific coverage
+
+Each state is a separate registry with its own portal, index (`index-<state>.db`), and quirks.
+Pass `state` in the options (or `--state` on the CLI) to target one; it defaults to Karnataka.
+
+- **Karnataka (`KA`)** — the reference. Ongoing + completed datasets, live project + promoter
+  detail, and the "Projects Under Investigation" list (stale, as above).
+- **Tamil Nadu (`TN`)** — covers both the **online** e-registered tables (Building + Layout,
+  ~3,400 projects, reg `TNRERA/…`) **and the offline paper-filed archives** (per-year, 2017–2025,
+  ~14,000 projects, reg `TN/…`), for ~17,600 projects total. Honest limits, by design:
+  - **Online vs offline is a filing-mode distinction, not a project kind.** Every TN record's
+    `dataset` is `'registered'` (TN has no ongoing/completed split, which carries no completion
+    claim). The online/offline difference shows only in the reg-number prefix and in what detail
+    is available.
+  - **Online** projects carry a rich "Form A" detail page — actually *more* than Karnataka in
+    places. `fetch()` returns project type, usage, site extent, dwelling-unit count, **stage of
+    construction (status)**, completion date, GPS, plan-approval details, and the promoter's
+    **RERA-designated bank name/branch**, plus a promoter profile with contact details (email,
+    mobile, website), CIN **or** GSTIN, masked PAN, and the chairman/CEO or the list of
+    partners/directors. Fields the portal doesn't publish for a given project (it renders them as
+    `-`) are `undefined`, never faked. (Not yet lifted: the project's structural-engineer/contractor
+    sub-blocks, the promoter's financial-indicator block — usually blank — and its previous-project
+    portfolio; and the pages' "View Document" PDF links.)
+  - **Offline** projects have **no structured detail page**, but their list row itself carries real
+    data we surface without OCR: **completion date, current status, and GPS** (manually typed in
+    DMS, e.g. `Latitude-10º59'54.8"N`, converted to decimal — present for ~40% of rows). `fetch()`
+    returns these plus a `documents` map of the official scanned PDFs (approval, carpet-area). The
+    *contents* of those scanned PDFs remain the only OCR-gated tier. Older filings (esp. 2017–18)
+    often recorded **no distinct project name**, only a construction description; the resolver falls
+    back to that description so the row stays searchable, never inventing a name.
+  - The promoter **name comes combined with its address** in the list, and **PAN is published masked**
+    (e.g. `XXXXXX230D`); both are stored verbatim as the portal presents them.
+  - TN has **no `checkUnderInvestigation()` equivalent** — it has no Karnataka-style enforcement
+    list, so that call returns empty for `state: 'TN'`.

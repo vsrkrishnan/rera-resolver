@@ -1,4 +1,13 @@
-export type Dataset = 'ongoing' | 'completed';
+// Which bulk list a record came from. Karnataka splits its registry into
+// 'ongoing' and 'completed' dumps. Some states don't split that way — Tamil
+// Nadu, for instance, exposes one registered-projects pool with no
+// ongoing/completed distinction (a free-text status field whose meaning
+// differs by category, not a clean split) — so 'registered' is the neutral
+// value for "a registered project, not classified ongoing vs completed". It
+// carries no ongoing/completed claim; consumers must not infer completion
+// state from it. dedupeRecords' ongoing<completed preference simply doesn't
+// apply to it.
+export type Dataset = 'ongoing' | 'completed' | 'registered';
 
 // The Indian state whose RERA registry a record belongs to. Each state runs
 // its own portal; a StateAdapter (see src/adapters) encapsulates one state's
@@ -27,6 +36,13 @@ export interface IndexRecord {
   // ongoing dump exposes no equivalent id anywhere in its markup (Phase 1.0
   // task 1). Required to call the projectDetails endpoint in fetch().
   completedRowId?: string;
+  // Opaque, per-state detail-routing tokens harvested from the list row and
+  // needed later by the adapter's fetchDetail() — for portals that key detail
+  // pages by a random id present only in the list HTML (not derivable from the
+  // regNumber). Tamil Nadu stores its two detail-page URLs here
+  // ({ project, promoter }); Karnataka doesn't use it (it has completedRowId).
+  // The engine treats this as an opaque bag; only the owning adapter reads it.
+  detailRefs?: Record<string, string>;
 }
 
 export interface IndexSnapshot {
@@ -95,6 +111,13 @@ export interface PromoterProfile {
   designation?: string;
   din?: string;
   numberOfDirectors?: string;
+  // Contact + identity fields Tamil Nadu's promoter page exposes (KA's doesn't).
+  email?: string;
+  mobile?: string;
+  website?: string;
+  occupation?: string; // individual promoters
+  fathersName?: string; // individual promoters
+  directorNames?: string[]; // partners/directors listed on the promoter page
 }
 
 export interface ProjectRecord {
@@ -113,6 +136,8 @@ export interface ProjectRecord {
   complaintsOnProject?: number;
   projectType?: string;
   projectDescription?: string;
+  usage?: string;
+  siteAreaSqm?: string;
   extentDevelopedPct?: string;
   projectAddress?: string;
   pinCode?: string;
@@ -128,6 +153,12 @@ export interface ProjectRecord {
   ifscCode?: string;
   numberOfPlotsOrUnits?: string;
   promoter?: PromoterProfile;
+  // Official source documents (label -> URL) the state publishes for this
+  // project instead of, or in addition to, structured detail — e.g. Tamil
+  // Nadu's offline (paper-filed) projects expose only scanned PDFs (approval,
+  // carpet-area). Populated from the index record's document links; never
+  // fabricated. Present mainly when fetchState is 'detail_unavailable'.
+  documents?: Record<string, string>;
   fetchState: FetchState;
   fetchedAt: string; // ISO-8601
 }

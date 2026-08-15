@@ -1,13 +1,14 @@
 import type { StateCode } from '../types.js';
 import type { StateAdapter } from './types.js';
 import { karnatakaAdapter } from './karnataka.js';
+import { tamilNaduAdapter } from './tamilnadu.js';
 
 // The one place that knows which states are supported. Adding a state = write
 // its adapter, add it here. Unimplemented states are declared but undefined so
 // getAdapter gives a clear error rather than a silent wrong-registry crawl.
 const ADAPTERS: Record<StateCode, StateAdapter | undefined> = {
   KA: karnatakaAdapter,
-  TN: undefined, // Tamil Nadu — planned
+  TN: tamilNaduAdapter,
   MH: undefined, // Maharashtra — planned
 };
 

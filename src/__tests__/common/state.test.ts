@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { writeSnapshot, readSnapshot, resolveDbPathForState } from '../storage.js';
-import { getAdapter, SUPPORTED_STATES } from '../adapters/registry.js';
-import type { IndexRecord } from '../types.js';
+import { writeSnapshot, readSnapshot, resolveDbPathForState } from '../../storage.js';
+import { getAdapter, SUPPORTED_STATES } from '../../adapters/registry.js';
+import type { IndexRecord } from '../../types.js';
 
 const RECORD: IndexRecord = {
   regNumber: 'PRM/KA/RERA/0001',
@@ -82,8 +82,26 @@ test('adapter registry: Karnataka is supported and shaped correctly; an unimplem
   assert.ok(SUPPORTED_STATES.includes('KA'));
   const ka = getAdapter('KA');
   assert.equal(ka.code, 'KA');
-  assert.deepEqual(ka.datasets, ['ongoing', 'completed']);
+  // Two crawl sources; the engine drives them opaquely (see CrawlSource).
+  assert.deepEqual(
+    ka.sources.map((s) => s.id),
+    ['ongoing', 'completed'],
+  );
   assert.equal(ka.hasInvestigationList, true);
-  // TN has no adapter yet — must fail loudly, not silently crawl the wrong portal.
-  assert.throws(() => getAdapter('TN'), /No RERA adapter for state "TN"/);
+  // MH has no adapter yet — must fail loudly, not silently crawl the wrong portal.
+  assert.throws(() => getAdapter('MH'), /No RERA adapter for state "MH"/);
+});
+
+test('adapter registry: Tamil Nadu is supported and shaped for a single unsplit registered pool', () => {
+  assert.ok(SUPPORTED_STATES.includes('TN'));
+  const tn = getAdapter('TN');
+  assert.equal(tn.code, 'TN');
+  assert.equal(tn.name, 'Tamil Nadu');
+  // TN crawls three sources — the online e-registered tables plus the offline
+  // building and layout archives — and has no Karnataka-style investigation list.
+  assert.deepEqual(
+    tn.sources.map((s) => s.id).sort(),
+    ['offline-building', 'offline-layout', 'online'],
+  );
+  assert.equal(tn.hasInvestigationList, false);
 });

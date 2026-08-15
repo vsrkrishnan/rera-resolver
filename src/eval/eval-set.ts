@@ -7,11 +7,17 @@
 // further requires more real queries with real verified outcomes, not
 // synthetic padding.
 
+import type { StateCode } from '../types.js';
+
 export type EvalConfidence = 'confirmed' | 'high_confidence_inferred' | 'unconfirmed';
 export type EvalCategory = 'typo' | 'master_community' | 'brand_prefix' | 'phased_project' | 'pre_rera_absence';
 
 export interface EvalCase {
   query: string;
+  // Which state's registry this case is verified against. Defaults to KA when
+  // omitted (every original case predates multi-state and is Karnataka).
+  // measure.ts resolves each case against its own state's index.
+  state?: StateCode;
   category: EvalCategory;
   wellKnown: boolean;
   provenance: string;
@@ -290,6 +296,68 @@ export const EVAL_SET: EvalCase[] = [
     expectNotHighConfidence: true,
     provenance:
       'Verified absent from the live index: the handful of "Metropolis"-named entries in the index belong to an unrelated developer (Metropolis Properties Private Limited), none to Brigade. Brigade Enterprises Ltd is confirmed active in RERA via its 45+ other real registered entries. Independently corroborated via multiple listings (CommonFloor, Brigade Group\'s own retail page, JLL): Brigade Metropolis was delivered around 2010, before RERA\'s 2017 enactment.',
+    confidence: 'confirmed',
+  },
+
+  // --- Tamil Nadu (TN). Verified against the live TN index synced 2026-08-09
+  // (online Building + Layout tables) and 2026-08-11 (offline paper-filed
+  // archives added). These resolve against data/index-tn.db.
+  {
+    query: 'Thiruvotiyur Scheme',
+    state: 'TN',
+    category: 'typo',
+    wellKnown: false,
+    acceptedRegNumbers: ['TNRERA/29/BLG/0001/2026'],
+    provenance:
+      'Verified against the live TN index (online Building table) synced 2026-08-09: the correctly-spelled "Thiruvottiyur Scheme" (promoter TNUHDB) is TNRERA/29/BLG/0001/2026. This single-dropped-letter typo ("Thiruvotiyur") resolves to it at high_confidence, top-ranked.',
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Hill View Haven Phase 2',
+    state: 'TN',
+    category: 'phased_project',
+    wellKnown: false,
+    acceptedRegNumbers: ['TNRERA/11/LO/0001/2026'],
+    provenance:
+      'Verified against the live TN index (online Layout table) synced 2026-08-09: "HILL VIEW HAVEN PHASE-2" (promoter M/s.MATRIX SHELTERS) is TNRERA/11/LO/0001/2026, returned as the top match.',
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Casagrand',
+    state: 'TN',
+    category: 'brand_prefix',
+    wellKnown: true,
+    expectNotHighConfidence: true,
+    provenance:
+      'Verified against the live TN index synced 2026-08-09: "Casagrand" is a builder brand shared by 10+ real registered TN projects (CASAGRAND AQUAGROVE, CASAGRAND ASCENTIA, CASAGRAND VENTRA, ...), with no single project registered as just "Casagrand". The bare brand token correctly returns ambiguous (all candidates Casagrand-branded) and must never assert a single high_confidence match — the same brand-prefix bar as the Karnataka cases above.',
+    confidence: 'confirmed',
+  },
+
+  // --- TN offline archive (paper-filed projects, reg `TN/…`). These older,
+  // well-known projects are absent from the online-only slice and only became
+  // resolvable once the offline archives were crawled (2026-08-11).
+  {
+    query: 'Purva Windermere',
+    state: 'TN',
+    category: 'phased_project',
+    wellKnown: true,
+    acceptedRegNumbers: [
+      'TN/29/Building/0008/2023', // Phase-4A
+      'TN/29/Building/0009/2023', // Phase-4B
+      'TN/29/Building/0010/2023', // Phase-4C
+    ],
+    provenance:
+      "Verified against the live TN index including the OFFLINE (paper-filed) Building archive, synced 2026-08-11: Puravankara Limited's Chennai project is registered across three phases \"Purva Windermere Phase-4A/4B/4C\" (TN/29/Building/0008–0010/2023). The bare brand query returns them ambiguous (each ~0.95) with a phase top-ranked. This project is entirely absent from the online-only slice — it is the worked proof that the offline archive makes older projects resolvable.",
+    confidence: 'confirmed',
+  },
+  {
+    query: 'Baashyaam Crown',
+    state: 'TN',
+    category: 'brand_prefix',
+    wellKnown: false,
+    expectNotHighConfidence: true,
+    provenance:
+      'Verified against the live TN index (offline Building archive) synced 2026-08-11: Baashyaam Constructions\' offline project is registered as "Crown Residences" (TN/29/Building/0184/2020), NOT "Baashyaam Crown" — no project carries that exact name, and "crown" is a common token shared by many unrelated projects (Royal Crown, Casagrand Crown, Crown City, ...). The bare query therefore correctly returns ambiguous and must never assert a single high_confidence match. (With a promoter hint of "Baashyaam Constructions", the query "Crown Residences" resolves exact/high_confidence — but the un-hinted brand query is honestly ambiguous.)',
     confidence: 'confirmed',
   },
 ];

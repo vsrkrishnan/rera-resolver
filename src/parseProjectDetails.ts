@@ -21,6 +21,8 @@ export interface ParsedProjectDetails {
   complaintsOnProject?: number;
   projectType?: string;
   projectDescription?: string;
+  usage?: string;
+  siteAreaSqm?: string;
   extentDevelopedPct?: string;
   projectAddress?: string;
   pinCode?: string;

@@ -4,6 +4,30 @@ const statusFooter = document.getElementById('status-footer');
 const form = document.getElementById('search-form');
 const nameInput = document.getElementById('name-input');
 const promoterInput = document.getElementById('promoter-input');
+const stateToggle = document.getElementById('state-toggle');
+const examplesEl = document.getElementById('examples');
+
+// A query always targets exactly ONE state — chosen explicitly here, never
+// implied. `currentState` is the single value threaded through every API call.
+let currentState = null;
+const stateNames = {}; // code -> display name (e.g. 'TN' -> 'Tamil Nadu')
+
+// State-specific example chips — each state's registry has different landmark
+// projects, so the demo suggestions follow the selected state.
+const EXAMPLES = {
+  KA: [
+    { label: 'Godraj United (typo)', name: 'Godraj United' },
+    { label: 'Lakeside Habitat', name: 'Lakeside Habitat', promoter: 'Prestige' },
+    { label: 'Brigade El Dorado', name: 'Brigade El Dorado' },
+    { label: 'Just a developer name →', promoter: 'Prestige Habitat Ventures' },
+  ],
+  TN: [
+    { label: 'Purva Windermere', name: 'Purva Windermere' },
+    { label: 'Crown Residences (Baashyaam)', name: 'Crown Residences', promoter: 'Baashyaam Constructions' },
+    { label: 'Hill View Haven Phase 2', name: 'Hill View Haven Phase 2' },
+    { label: 'Tulive', name: 'Tulive' },
+  ],
+};
 
 const money = (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : null);
 
@@ -24,17 +48,93 @@ function hide(el) { el.classList.add('hidden'); }
 
 async function loadStatus() {
   try {
-    const res = await fetch('/api/status');
+    const res = await fetch(`/api/status?state=${encodeURIComponent(currentState)}`);
     const data = await res.json();
     if (!data.ready) {
-      statusFooter.textContent = 'Local index not built yet.';
+      statusFooter.textContent = `${stateNames[currentState] ?? currentState} index not built yet.`;
       return;
     }
     statusFooter.textContent =
-      `Local index: ${data.totalRecords} projects (${data.ongoingCount} ongoing, ${data.completedCount} completed) — synced ${new Date(data.fetchedAt).toLocaleDateString()}`;
+      `${stateNames[data.state] ?? data.state} index: ${data.totalRecords.toLocaleString('en-IN')} projects — synced ${new Date(data.fetchedAt).toLocaleDateString()}`;
   } catch {
     statusFooter.textContent = '';
   }
+}
+
+// Populate the example chips for the active state.
+function renderExamples() {
+  const chips = EXAMPLES[currentState] ?? [];
+  examplesEl.innerHTML =
+    'Try: ' +
+    chips
+      .map(
+        (c) =>
+          `<button class="chip" data-name="${esc(c.name ?? '')}" data-promoter="${esc(c.promoter ?? '')}">${esc(c.label)}</button>`,
+      )
+      .join('');
+  examplesEl.querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      nameInput.value = chip.dataset.name ?? '';
+      promoterInput.value = chip.dataset.promoter ?? '';
+      dispatchSearch(chip.dataset.name ?? '', chip.dataset.promoter ?? '');
+    });
+  });
+}
+
+// Reflect the active state in the segmented toggle.
+function updateToggleActive() {
+  stateToggle.querySelectorAll('.state-option').forEach((btn) => {
+    const active = btn.dataset.state === currentState;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
+}
+
+// Switching state is a hard context switch — clear any prior results so a
+// record from one registry is never shown under another.
+function onStateChange(next) {
+  if (next === currentState) return;
+  currentState = next;
+  updateToggleActive();
+  hide(resolveSection);
+  hide(dossierSection);
+  resolveSection.innerHTML = '';
+  dossierSection.innerHTML = '';
+  searchHint.textContent = '';
+  nameInput.value = '';
+  promoterInput.value = '';
+  renderExamples();
+  loadStatus();
+}
+
+function renderStateToggle(states) {
+  stateToggle.innerHTML = states
+    .map((s) => {
+      const count = typeof s.totalRecords === 'number' ? `<span class="state-count">${s.totalRecords.toLocaleString('en-IN')}</span>` : '';
+      return `<button type="button" class="state-option" data-state="${esc(s.code)}" aria-pressed="false">
+        <span class="state-name">${esc(s.name)}</span>${count}
+      </button>`;
+    })
+    .join('');
+  stateToggle.querySelectorAll('.state-option').forEach((btn) => {
+    btn.addEventListener('click', () => onStateChange(btn.dataset.state));
+  });
+  updateToggleActive();
+}
+
+async function init() {
+  let states = [];
+  try {
+    const res = await fetch('/api/states');
+    states = (await res.json()).states ?? [];
+  } catch {
+    states = [{ code: 'KA', name: 'Karnataka' }];
+  }
+  for (const s of states) stateNames[s.code] = s.name;
+  currentState = states[0]?.code ?? 'KA';
+  renderStateToggle(states);
+  renderExamples();
+  loadStatus();
 }
 
 const searchHint = document.getElementById('search-hint');
@@ -42,14 +142,6 @@ const searchHint = document.getElementById('search-hint');
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   dispatchSearch(nameInput.value.trim(), promoterInput.value.trim());
-});
-
-document.querySelectorAll('.chip').forEach((chip) => {
-  chip.addEventListener('click', () => {
-    nameInput.value = chip.dataset.name ?? '';
-    promoterInput.value = chip.dataset.promoter ?? '';
-    dispatchSearch(chip.dataset.name ?? '', chip.dataset.promoter ?? '');
-  });
 });
 
 function dispatchSearch(name, promoterName) {
@@ -73,7 +165,7 @@ async function runResolve(name, promoterName) {
   show(resolveSection);
   resolveSection.innerHTML = '<p class="loading">Resolving locally…</p>';
 
-  const params = new URLSearchParams({ name });
+  const params = new URLSearchParams({ name, state: currentState });
   if (promoterName) params.set('promoter', promoterName);
 
   let result;
@@ -175,12 +267,12 @@ function wireCandidateActions(root) {
 
 async function loadProject(regNumber) {
   show(dossierSection);
-  dossierSection.innerHTML = '<p class="loading">Querying the live Karnataka RERA portal… (can take up to 20s)</p>';
+  dossierSection.innerHTML = `<p class="loading">Querying the live ${esc(stateNames[currentState] ?? currentState)} RERA portal… (can take up to 20s)</p>`;
   dossierSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   let project;
   try {
-    const res = await fetch(`/api/project?regNumber=${encodeURIComponent(regNumber)}`);
+    const res = await fetch(`/api/project?regNumber=${encodeURIComponent(regNumber)}&state=${encodeURIComponent(currentState)}`);
     project = await res.json();
     if (!res.ok) throw new Error(project.error ?? 'fetch failed');
   } catch (err) {
@@ -191,13 +283,30 @@ async function loadProject(regNumber) {
   renderProject(project);
 }
 
+const DOCUMENT_LABELS = { approval: 'Approval details', carpet: 'Carpet-area statement', formA: 'Form A', status: 'Current status' };
+
+// Official source-document (PDF) links, shown whenever present — e.g. Tamil
+// Nadu's offline projects carry scanned approval/carpet PDFs.
+function documentsHtml(p) {
+  const docs = p.documents ? Object.entries(p.documents) : [];
+  if (docs.length === 0) return '';
+  return `<h3>Official documents</h3>
+    <ul class="documents">
+      ${docs.map(([k, url]) => `<li><a href="${esc(url)}" target="_blank" rel="noopener">${esc(DOCUMENT_LABELS[k] ?? k)} (PDF) →</a></li>`).join('')}
+    </ul>`;
+}
+
 function renderProject(p) {
   if (p.fetchState === 'detail_unavailable') {
+    const docs = documentsHtml(p);
+    const body = docs
+      ? `<p class="notice">This is an older, paper-filed registration — ${esc(stateNames[p.state] ?? p.state ?? 'the state')}'s portal exposes it only as scanned documents. Here are the official records:</p>${docs}`
+      : `<p class="notice">The live government portal didn't respond just now — it can be slow, temporarily down, or unreachable from this environment. The local registry index still confirms this project exists. Try again in a moment.</p>`;
     dossierSection.innerHTML = `
       <div class="dossier-card">
         <h2>${esc(p.registeredName)}</h2>
         <p class="reg-number">${esc(p.regNumber)}</p>
-        <p class="notice">The live government portal didn't respond just now — it can be slow, temporarily down, or unreachable from this environment. The local registry index still confirms this project exists. Try again in a moment.</p>
+        ${body}
       </div>`;
     return;
   }
@@ -207,6 +316,8 @@ function renderProject(p) {
     ['Start date', p.projectStartDate],
     ['End date', p.projectEndDate],
     ['Project type', p.projectType],
+    ['Usage', p.usage],
+    ['Site extent (sq.m)', p.siteAreaSqm],
     ['Extent developed', p.extentDevelopedPct],
     ['Address', p.projectAddress],
     ['Plots / units', p.numberOfPlotsOrUnits],
@@ -244,6 +355,7 @@ function renderProject(p) {
         ${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}
       </table>
       ${gps}
+      ${documentsHtml(p)}
       <h3>Promoter</h3>
       <p class="promoter-name-lg">${esc(p.promoterName)} <button class="view-promoter" data-promoter="${esc(p.promoterName)}">View full promoter profile</button></p>
       ${promoter}
@@ -258,8 +370,13 @@ function renderPromoterProfile(profile) {
   const rows = [
     ['Type of firm', profile.typeOfFirm],
     ['CIN / registration no.', profile.registrationNumber],
-    ['PAN', profile.pan],
     ['GSTIN', profile.gstin],
+    ['PAN', profile.pan],
+    ['Email', profile.email],
+    ['Mobile', profile.mobile],
+    ['Website', profile.website],
+    ['Occupation', profile.occupation],
+    ["Father's name", profile.fathersName],
     ['Address', profile.address],
     ['District', profile.district],
     ['Taluk', profile.taluk],
@@ -267,7 +384,7 @@ function renderPromoterProfile(profile) {
     ['CEO / MD', profile.ceoOrMd],
     ['Authorized signatory', profile.authorizedSignatory],
     ['DIN', profile.din],
-    ['Number of directors', profile.numberOfDirectors],
+    ['Partners / directors', Array.isArray(profile.directorNames) ? profile.directorNames.join(', ') : profile.numberOfDirectors],
   ].filter(([, v]) => v);
   if (rows.length === 0) return '';
   return `<table class="detail-table">${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table>`;
@@ -275,12 +392,12 @@ function renderPromoterProfile(profile) {
 
 async function loadPromoter(name) {
   show(dossierSection);
-  dossierSection.innerHTML = '<p class="loading">Querying the live Karnataka RERA portal for promoter profile…</p>';
+  dossierSection.innerHTML = `<p class="loading">Querying the live ${esc(stateNames[currentState] ?? currentState)} RERA portal for promoter profile…</p>`;
   dossierSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   let data;
   try {
-    const res = await fetch(`/api/promoter?name=${encodeURIComponent(name)}`);
+    const res = await fetch(`/api/promoter?name=${encodeURIComponent(name)}&state=${encodeURIComponent(currentState)}`);
     data = await res.json();
     if (!res.ok) throw new Error(data.error ?? 'fetch failed');
   } catch (err) {
@@ -336,4 +453,4 @@ function renderPromoter(promoter, investigation) {
   });
 }
 
-loadStatus();
+init();

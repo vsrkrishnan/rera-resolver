@@ -4,6 +4,7 @@ Everything beyond the bare `resolve()` example in the [README](../README.md): re
 fetching project and promoter detail, the enforcement-list cross-check, keeping the local index
 fresh in a running app, the command-line interface, and the optional Tier 3 LLM bridge.
 
+- [Choosing a state](#choosing-a-state)
 - [Resolving a name](#resolving-a-name)
 - [Fetch live project detail](#fetch-live-project-detail)
 - [Promoter profile](#promoter-profile)
@@ -12,6 +13,25 @@ fresh in a running app, the command-line interface, and the optional Tier 3 LLM 
 - [Keeping data fresh](#keeping-data-fresh)
 - [Command-line usage](#command-line-usage)
 - [Optional: Tier 3 LLM semantic bridge](#optional-tier-3-llm-semantic-bridge)
+
+## Choosing a state
+
+RERA is administered per state, each with its own portal and registry. Every function accepts a
+`state` option (`'KA'` Karnataka — the default; `'TN'` Tamil Nadu), and each state keeps its own
+local index (`index-<state>.db`). Omit it and you get Karnataka, exactly as before multi-state
+support.
+
+```ts
+import { resolve, fetch } from 'rera-resolver';
+
+await resolve('Hill View Haven Phase 2', undefined, { state: 'TN' });
+await fetch('TNRERA/29/BLG/0001/2026', { state: 'TN' });
+```
+
+On the CLI, pass `--state <code>` to any command (`sync`, `status`, `resolve`, `fetch`,
+`promoter`). Sync each state separately: `npx rera-resolver sync --state TN`. States differ in
+what they expose — see [caveats.md](caveats.md#state-specific-coverage) for Tamil Nadu's coverage
+limits (online projects only, fewer live-detail fields, no enforcement list).
 
 ## Resolving a name
 
