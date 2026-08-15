@@ -42,6 +42,17 @@ All notable changes to this project will be documented in this file. Format is b
   `fetchDetail(record) -> { detail, promoter }`. `IndexRecord` gains an opaque `detailRefs` bag
   for portals that key detail pages (or documents) by a per-row id.
 
+### Fixed
+
+- **`fetchPromoter` could wrongly report `profile_unavailable`** for a promoter who has a real
+  profile, if the ONE project it tried happened to be one with no promoter page. This never showed
+  up on Karnataka (either dataset's single detail page always carries the promoter block), but on
+  Tamil Nadu, offline projects have no promoter page at all — so a promoter whose top-ranked project
+  was an offline one could get a false negative even with a full profile available on an online
+  sibling project. `fetchPromoter` now tries every one of a promoter's projects (still capped at
+  `MAX_CANDIDATES`, still trying `completed`/cheaper options first) until one actually yields a
+  profile.
+
 
 ## [0.1.0] - 2026-07-19
 
